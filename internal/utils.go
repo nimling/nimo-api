@@ -6,10 +6,12 @@ import (
 	"strings"
 )
 
+var Version = "v2.0.0"
+
 func GetVersion() string {
 	data, err := os.ReadFile(".env")
 	if err != nil {
-		return "v2.0.0"
+		return Version
 	}
 
 	lines := strings.Split(string(data), "\n")
@@ -19,7 +21,7 @@ func GetVersion() string {
 		}
 	}
 
-	return "v2.0.0"
+	return Version
 }
 
 func PrintBanner() {

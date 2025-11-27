@@ -8,8 +8,11 @@ default:
 
 # Build the application
 build:
-    @echo "Building {{APP_NAME}}..."
-    @go build -o {{GOBIN}}/{{APP_NAME}} ./cmd
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building {{APP_NAME}}..."
+    VERSION=$(grep "APP_VERSION=" .env | cut -d'=' -f2)
+    go build -ldflags "-X github.com/nimling/nimo-api/internal.Version=$VERSION" -o {{GOBIN}}/{{APP_NAME}} ./cmd
 
 # Run the built application
 run: build
