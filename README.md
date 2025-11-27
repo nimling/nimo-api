@@ -1,43 +1,17 @@
 # Nimo
 
-A comprehensive CLI tool and GitHub Action for complete OpenAPI workflow automation. From code to documentation, Nimo handles your entire API documentation lifecycle.
+A powerful CLI tool and GitHub Action for working with OpenAPI specifications. Generate specs from code, convert to various formats, merge multiple specs, and sync documentation files.
 
-## Why Nimo?
+## Features
 
-Nimo is the only tool you need for OpenAPI documentation workflows. It combines four essential capabilities:
-
-### 🤖 Generate - AI-Powered Spec Creation
-Extract OpenAPI specifications directly from your Go Echo handlers using AI (DeepSeek-r1). No manual YAML writing - let AI analyze your code and generate comprehensive API documentation automatically.
-
-### 🔄 Convert - Multi-Format Transformation
-Transform OpenAPI specs into production-ready outputs:
-- **Nginx configurations** for API gateway routing
-- **VitePress documentation** with interactive API references
-- Automatic external reference resolution
-- Batch processing support
-
-### 🔗 Merge - Multi-Service Aggregation
-Combine OpenAPI specs from multiple microservices into a single unified API documentation. Perfect for:
-- Monorepo architectures
-- Multi-service platforms
-- API gateway documentation
-- Environment variable-driven metadata
-
-### 📦 Sync - Documentation Distribution
-Synchronize documentation files across repositories using regex pattern matching. Ideal for:
-- Centralizing docs from multiple repos
-- Maintaining documentation portals
-- Keeping API references in sync
-
-## Key Features
-
-- ✅ **Zero manual YAML** - Generate specs from code
-- ✅ **Production-ready outputs** - Nginx configs, VitePress docs
-- ✅ **Microservice-friendly** - Merge multiple services
-- ✅ **CI/CD integration** - GitHub Action support
-- ✅ **Environment-aware** - Full env variable support
-- ✅ **Type-safe** - Leverages kin-openapi for OpenAPI 3.1
-- ✅ **Fast** - Concurrent processing with rate limiting
+- **Generate**: Create OpenAPI specs from Go Echo handler code using AI
+- **Convert**: Transform OpenAPI specs into Nginx configurations and VitePress documentation
+- **Merge**: Combine multiple OpenAPI specifications into one unified spec
+- **Sync**: Synchronize documentation files across repositories using pattern-based mapping
+- **External reference resolution**: Automatically resolves `$ref` references to external files
+- **Batch processing**: Process multiple specifications at once
+- **GitHub Action support**: Available as a GitHub Action for CI/CD pipelines
+- **Strict validation**: Ensures OpenAPI specifications meet documentation standards
 
 ## OpenAPI Compliance
 
@@ -248,217 +222,60 @@ nimo sync --sync-map ./docs/mapping.json
 
 ## GitHub Action Usage
 
-Nimo is available as a GitHub Action with full support for all commands. The action dynamically installs the tool and runs your specified command.
+The tool is available as a GitHub Action supporting all four commands.
 
-### Quick Start
+### Basic Usage
 
 ```yaml
 - uses: nimling/nimo-api@v2
   with:
-    command: 'generate'  # or 'convert', 'merge', 'sync'
-    # command-specific inputs below
+    command: 'convert'
+    openapi-file: './api.yml'
+    docs-dir: './docs/api'
 ```
 
-### Complete Examples
+### Examples
 
-#### 1. Generate OpenAPI from Go Code
-
+Generate OpenAPI from Go code:
 ```yaml
-name: Generate API Spec
-on:
-  push:
-    paths: ['**/*.go']
-
-jobs:
-  generate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Generate OpenAPI Spec
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'generate'
-          main: './cmd/api/main.go'
-          readme: './README.md'
-          output: 'openapi.yaml'
-          format: 'yaml'
+- uses: nimling/nimo-api@v2
+  with:
+    command: 'generate'
+    main: './main.go'
+    readme: './README.md'
+    output: 'openapi.yaml'
 ```
 
-#### 2. Convert Spec to Documentation
-
+Convert to documentation:
 ```yaml
-name: Build API Documentation
-on:
-  push:
-    paths: ['api.yaml']
-
-jobs:
-  convert:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Convert to VitePress Docs
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'convert'
-          openapi-file: './api.yaml'
-          docs-dir: './docs/api'
-          common-prefix: '/api/v1'
-          write-introduction: 'true'
+- uses: nimling/nimo-api@v2
+  with:
+    command: 'convert'
+    openapi-file: 'api.yaml'
+    docs-dir: './docs/api'
+    common-prefix: '/api/v1'
 ```
 
-#### 3. Merge Multiple Service Specs
-
+Merge multiple specs:
 ```yaml
-name: Merge Service Specs
-on:
-  push:
-    paths: ['services/**/api.json']
-
-jobs:
-  merge:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Merge Microservice Specs
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'merge'
-          specs: 'services/auth/api.json services/user/api.json services/payment/api.json'
-          output: 'platform-api.json'
-          title: 'Platform API'
-          version: ${{ github.ref_name }}
-          force: 'true'
+- uses: nimling/nimo-api@v2
+  with:
+    command: 'merge'
+    specs: 'spec1.json spec2.json spec3.json'
+    output: 'merged.json'
+    title: 'My API'
+    version: 'v1.0.0'
 ```
 
-#### 4. Sync Documentation Across Repos
-
+Sync documentation:
 ```yaml
-name: Sync Documentation
-on:
-  workflow_dispatch:
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Sync Docs to Portal
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'sync'
-          sync-map: './docs/sync-map.json'
+- uses: nimling/nimo-api@v2
+  with:
+    command: 'sync'
+    sync-map: './sync-config.json'
 ```
 
-#### 5. Complete CI/CD Pipeline
-
-Full workflow combining all commands:
-
-```yaml
-name: Complete API Documentation Pipeline
-
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'services/**/*.go'
-      - 'api/**/*.yaml'
-
-jobs:
-  build-unified-docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Step 1: Generate specs from each service
-      - name: Generate Auth Service Spec
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'generate'
-          main: './services/auth/main.go'
-          readme: './services/auth/README.md'
-          output: 'services/auth/api.json'
-          format: 'json'
-
-      - name: Generate User Service Spec
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'generate'
-          main: './services/user/main.go'
-          readme: './services/user/README.md'
-          output: 'services/user/api.json'
-          format: 'json'
-
-      # Step 2: Merge all service specs
-      - name: Merge Service Specs
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'merge'
-          specs: 'services/auth/api.json services/user/api.json'
-          output: 'platform-api.json'
-          title: 'Platform API'
-          description: 'Unified API for all platform services'
-          version: ${{ github.ref_name }}
-          contact-name: 'API Team'
-          contact-email: 'api@company.com'
-          force: 'true'
-
-      # Step 3: Convert to documentation
-      - name: Convert to VitePress
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'convert'
-          openapi-file: 'platform-api.json'
-          docs-dir: './docs/api'
-          common-prefix: '/api'
-          write-introduction: 'true'
-          merge-responses: 'true'
-
-      # Step 4: Sync to documentation portal
-      - name: Sync to Docs Portal
-        uses: nimling/nimo-api@v2
-        with:
-          command: 'sync'
-          sync-map: './docs/sync-map.json'
-
-      # Step 5: Commit generated docs
-      - name: Commit Documentation
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/ platform-api.json
-          git commit -m "docs: update API documentation [skip ci]" || echo "No changes"
-          git push
-```
-
-### Environment Variables
-
-All commands support environment variables for default values:
-
-```yaml
-env:
-  # Generate command
-  AI_ENDPOINT: 'http://ollama:11434'
-  OUTPUT_FILE: 'api.yaml'
-  OUTPUT_FORMAT: 'yaml'
-
-  # Merge command
-  API_TITLE: 'My API'
-  API_VERSION: ${{ github.ref_name }}
-  CONTACT_NAME: 'API Team'
-  CONTACT_EMAIL: 'api@example.com'
-  FORCE_OVERWRITE: 'true'
-```
-
-### Action Inputs Reference
-
-All available inputs per command are documented in [action.yml](./action.yml).
+See [action.yml](./action.yml) for all available inputs.
 
 ### Output Formats
 
