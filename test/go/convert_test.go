@@ -3,7 +3,7 @@ package test
 import (
 	"os"
 	"testing"
-	"github.com/nimling/openapi-converter/internal"
+	"github.com/nimling/nimo-api/internal"
 )
 
 func TestConvertCommand(t *testing.T) {

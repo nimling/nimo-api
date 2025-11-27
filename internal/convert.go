@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"github.com/nimling/openapi-converter/converter"
+	"github.com/nimling/nimo-api/converter"
 	"github.com/spf13/cobra"
 )
 

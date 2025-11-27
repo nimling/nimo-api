@@ -3,8 +3,8 @@ package converter
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/nimling/openapi-converter/utils"
-	"github.com/nimling/openapi-converter/vitepress"
+	"github.com/nimling/nimo-api/utils"
+	"github.com/nimling/nimo-api/vitepress"
 	"gopkg.in/yaml.v3"
 	"hash/fnv"
 	"os"

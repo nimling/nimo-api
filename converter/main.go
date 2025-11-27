@@ -2,7 +2,7 @@ package converter
 
 import (
 	"fmt"
-	"github.com/nimling/openapi-converter/utils"
+	"github.com/nimling/nimo-api/utils"
 	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"

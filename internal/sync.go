@@ -2,7 +2,8 @@ package internal
 
 import (
 	"fmt"
-	"github.com/nimling/openapi-converter/converter"
+
+	"github.com/nimling/nimo-api/converter"
 	"github.com/spf13/cobra"
 )
 
@@ -34,10 +35,10 @@ Mapping File Format:
 
 Examples:
   # Sync documentation using mapping file
-  openapi-converter sync -s mapping.json
-  
+  nimo sync -s mapping.json
+
   # Sync with custom mapping
-  openapi-converter sync --sync-map ./config/sync-map.json`,
+  nimo sync --sync-map ./config/sync-map.json`,
 		RunE: runSyncCommand,
 	}
 	

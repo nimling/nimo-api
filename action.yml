@@ -1,5 +1,5 @@
-name: 'OpenAPI Converter'
-description: 'Convert OpenAPI specifications and sync documentation files'
+name: 'Nimo'
+description: 'Complete OpenAPI toolkit - generate, convert, merge, and sync API documentation'
 author: 'nimtech'
 branding:
   icon: 'file-text'
@@ -7,46 +7,106 @@ branding:
 
 inputs:
   command:
-    description: 'Command to run (convert or sync)'
+    description: 'Command to run: generate, convert, merge, or sync'
     required: true
     default: 'convert'
-  
+
+  # Generate command inputs
+  main:
+    description: 'Path to main.go file (for generate command)'
+    required: false
+
+  readme:
+    description: 'Path to README.md file (for generate command)'
+    required: false
+
+  ai-endpoint:
+    description: 'AI API endpoint (for generate command)'
+    required: false
+    default: 'http://localhost:11434'
+
+  max-concurrent:
+    description: 'Maximum concurrent AI API calls (for generate command)'
+    required: false
+    default: '5'
+
+  # Convert command inputs
   openapi-file:
     description: 'Path to OpenAPI YAML file (for convert command)'
     required: false
-  
+
   docs-dir:
     description: 'Output directory for API docs (for convert command)'
     required: false
-  
+
   output-dir:
     description: 'Output directory for nginx configuration files (for convert command)'
     required: false
-  
+
   common-prefix:
     description: 'Output path prefix for VitePress links (for convert command)'
     required: false
-  
+
   file-prefix:
     description: 'Output filename prefix (for convert command)'
     required: false
-  
+
   index-path:
     description: 'Output index.md path for VitePress features (for convert command)'
     required: false
-  
+
   merge-responses:
     description: 'Merge inline allOf definitions (for convert command)'
     required: false
     default: 'false'
-  
+
   write-introduction:
     description: 'Write API docs introduction file (for convert command)'
     required: false
     default: 'false'
-  
+
+  # Merge command inputs
+  specs:
+    description: 'Space-separated list of spec files to merge (for merge command)'
+    required: false
+
+  title:
+    description: 'Override API title (for merge command)'
+    required: false
+
+  description:
+    description: 'Override API description (for merge command)'
+    required: false
+
+  version:
+    description: 'Override API version (for merge command)'
+    required: false
+
+  contact-name:
+    description: 'Override contact name (for merge command)'
+    required: false
+
+  contact-email:
+    description: 'Override contact email (for merge command)'
+    required: false
+
+  force:
+    description: 'Force overwrite existing file (for merge command)'
+    required: false
+    default: 'false'
+
+  # Shared inputs
+  output:
+    description: 'Output file path (for generate and merge commands)'
+    required: false
+
+  format:
+    description: 'Output format: yaml or json (for generate and merge commands)'
+    required: false
+
+  # Sync command inputs
   sync-map:
-    description: 'JSON mapping file or inline JSON for sync command. Destinations must specify target filename. Copies files with rename or entire directories if target file exists within.'
+    description: 'JSON mapping file or inline JSON for sync command'
     required: false
 
 runs:
@@ -56,19 +116,34 @@ runs:
       uses: actions/setup-go@v4
       with:
         go-version: '1.23'
-    
-    - name: Install OpenAPI Converter
+
+    - name: Install Nimo
       shell: bash
       run: |
-        go install github.com/nimling/openapi-converter@latest
+        go install github.com/nimling/nimo-api@latest
         echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-    
+
+    - name: Run Generate Command
+      if: inputs.command == 'generate'
+      shell: bash
+      run: |
+        ARGS="generate"
+
+        [ -n "${{ inputs.main }}" ] && ARGS="$ARGS -m ${{ inputs.main }}"
+        [ -n "${{ inputs.readme }}" ] && ARGS="$ARGS -r ${{ inputs.readme }}"
+        [ -n "${{ inputs.ai-endpoint }}" ] && ARGS="$ARGS -a ${{ inputs.ai-endpoint }}"
+        [ -n "${{ inputs.max-concurrent }}" ] && ARGS="$ARGS -c ${{ inputs.max-concurrent }}"
+        [ -n "${{ inputs.output }}" ] && ARGS="$ARGS -o ${{ inputs.output }}"
+        [ -n "${{ inputs.format }}" ] && ARGS="$ARGS -f ${{ inputs.format }}"
+
+        nimo $ARGS
+
     - name: Run Convert Command
       if: inputs.command == 'convert'
       shell: bash
       run: |
         ARGS="convert ${{ inputs.openapi-file }}"
-        
+
         [ -n "${{ inputs.common-prefix }}" ] && ARGS="$ARGS --common-prefix ${{ inputs.common-prefix }}"
         [ -n "${{ inputs.docs-dir }}" ] && ARGS="$ARGS -d ${{ inputs.docs-dir }}"
         [ -n "${{ inputs.output-dir }}" ] && ARGS="$ARGS -o ${{ inputs.output-dir }}"
@@ -76,9 +151,26 @@ runs:
         [ -n "${{ inputs.index-path }}" ] && ARGS="$ARGS -i ${{ inputs.index-path }}"
         [ "${{ inputs.merge-responses }}" == "true" ] && ARGS="$ARGS --merge-responses-inline"
         [ "${{ inputs.write-introduction }}" == "true" ] && ARGS="$ARGS --write-introduction"
-        
-        openapi-converter $ARGS
-    
+
+        nimo $ARGS
+
+    - name: Run Merge Command
+      if: inputs.command == 'merge'
+      shell: bash
+      run: |
+        ARGS="merge ${{ inputs.specs }}"
+
+        [ -n "${{ inputs.output }}" ] && ARGS="$ARGS -o ${{ inputs.output }}"
+        [ "${{ inputs.force }}" == "true" ] && ARGS="$ARGS -f"
+        [ -n "${{ inputs.title }}" ] && ARGS="$ARGS --title \"${{ inputs.title }}\""
+        [ -n "${{ inputs.description }}" ] && ARGS="$ARGS --description \"${{ inputs.description }}\""
+        [ -n "${{ inputs.version }}" ] && ARGS="$ARGS --version ${{ inputs.version }}"
+        [ -n "${{ inputs.contact-name }}" ] && ARGS="$ARGS --contact-name \"${{ inputs.contact-name }}\""
+        [ -n "${{ inputs.contact-email }}" ] && ARGS="$ARGS --contact-email ${{ inputs.contact-email }}"
+        [ -n "${{ inputs.format }}" ] && ARGS="$ARGS --format ${{ inputs.format }}"
+
+        nimo $ARGS
+
     - name: Run Sync Command
       if: inputs.command == 'sync'
       shell: bash
@@ -87,8 +179,8 @@ runs:
         if [[ "$SYNC_MAP" == \{* ]]; then
           TEMP_FILE=$(mktemp /tmp/sync-map.XXXXXX.json)
           echo "$SYNC_MAP" > "$TEMP_FILE"
-          openapi-converter sync -s "$TEMP_FILE"
+          nimo sync -s "$TEMP_FILE"
           rm -f "$TEMP_FILE"
         else
-          openapi-converter sync -s "$SYNC_MAP"
+          nimo sync -s "$SYNC_MAP"
         fi

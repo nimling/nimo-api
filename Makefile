@@ -1,7 +1,7 @@
 # Variables
 GO_FILES := $(shell find . -name '*.go')
 VERSION := $(shell git describe --tags --always --dirty)
-APP_NAME := openapi-converter
+APP_NAME := nimo
 
 # Go related variables
 GOBASE := $(shell pwd)
