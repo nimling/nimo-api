@@ -39,7 +39,7 @@ func MergeSpecs(specPaths []string, outputPath string, opts MergeOptions) error 
 		specs = append(specs, spec)
 	}
 
-	merged := mergeOpenAPISpecs(specs, opts)
+	merged, overwrites := mergeOpenAPISpecs(specs, opts)
 
 	if err := writeSpec(merged, outputPath, opts.OutputFormat); err != nil {
 		return fmt.Errorf("failed to write merged spec: %w", err)
@@ -54,6 +54,14 @@ func MergeSpecs(specPaths []string, outputPath string, opts MergeOptions) error 
 	}
 	if merged.Tags != nil {
 		fmt.Printf("  Tags: %d\n", len(merged.Tags))
+	}
+
+	if len(overwrites) > 0 {
+		fmt.Printf("\n⚠ Warning: %d operation(s) were overwritten:\n", len(overwrites))
+		for _, overwrite := range overwrites {
+			fmt.Printf("  - %s\n", overwrite)
+		}
+		fmt.Println("\nPlease review these manually to ensure the correct operations were kept.")
 	}
 
 	return nil
@@ -74,9 +82,9 @@ func loadSpec(path string) (*openapi3.T, error) {
 	return spec, nil
 }
 
-func mergeOpenAPISpecs(specs []*openapi3.T, opts MergeOptions) *openapi3.T {
+func mergeOpenAPISpecs(specs []*openapi3.T, opts MergeOptions) (*openapi3.T, []string) {
 	if len(specs) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	base := specs[0]
@@ -111,11 +119,18 @@ func mergeOpenAPISpecs(specs []*openapi3.T, opts MergeOptions) *openapi3.T {
 	}
 
 	tagMap := make(map[string]*openapi3.Tag)
+	var overwrites []string
 
 	for _, spec := range specs {
 		if spec.Paths != nil {
 			for path, pathItem := range spec.Paths.Map() {
-				merged.Paths.Set(path, pathItem)
+				existingPathItem := merged.Paths.Find(path)
+				if existingPathItem == nil {
+					merged.Paths.Set(path, pathItem)
+				} else {
+					overwritten := mergePathItems(existingPathItem, pathItem, path)
+					overwrites = append(overwrites, overwritten...)
+				}
 			}
 		}
 
@@ -146,7 +161,7 @@ func mergeOpenAPISpecs(specs []*openapi3.T, opts MergeOptions) *openapi3.T {
 		merged.Tags = append(merged.Tags, tag)
 	}
 
-	return merged
+	return merged, overwrites
 }
 
 func writeSpec(spec *openapi3.T, outputPath, format string) error {
@@ -174,4 +189,71 @@ func getOrDefault(value, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func mergePathItems(existing, new *openapi3.PathItem, path string) []string {
+	var overwrites []string
+
+	if new.Get != nil {
+		if existing.Get != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s GET", path))
+		}
+		existing.Get = new.Get
+	}
+	if new.Post != nil {
+		if existing.Post != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s POST", path))
+		}
+		existing.Post = new.Post
+	}
+	if new.Put != nil {
+		if existing.Put != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s PUT", path))
+		}
+		existing.Put = new.Put
+	}
+	if new.Patch != nil {
+		if existing.Patch != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s PATCH", path))
+		}
+		existing.Patch = new.Patch
+	}
+	if new.Delete != nil {
+		if existing.Delete != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s DELETE", path))
+		}
+		existing.Delete = new.Delete
+	}
+	if new.Head != nil {
+		if existing.Head != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s HEAD", path))
+		}
+		existing.Head = new.Head
+	}
+	if new.Options != nil {
+		if existing.Options != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s OPTIONS", path))
+		}
+		existing.Options = new.Options
+	}
+	if new.Trace != nil {
+		if existing.Trace != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s TRACE", path))
+		}
+		existing.Trace = new.Trace
+	}
+	if new.Connect != nil {
+		if existing.Connect != nil {
+			overwrites = append(overwrites, fmt.Sprintf("%s CONNECT", path))
+		}
+		existing.Connect = new.Connect
+	}
+	if new.Servers != nil {
+		existing.Servers = new.Servers
+	}
+	if new.Parameters != nil {
+		existing.Parameters = new.Parameters
+	}
+
+	return overwrites
 }
