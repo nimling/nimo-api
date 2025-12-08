@@ -35,11 +35,15 @@ inputs:
     description: 'Path to OpenAPI YAML file (for convert command)'
     required: false
 
-  docs-dir:
-    description: 'Output directory for API docs (for convert command)'
+  output-dir:
+    description: 'Output directory for spec.json (for convert command, can also use NIMO_OUTPUT env var)'
     required: false
 
-  output-dir:
+  docs-dir:
+    description: 'Output directory for VitePress markdown files (for convert command)'
+    required: false
+
+  nginx-output-dir:
     description: 'Output directory for nginx configuration files (for convert command)'
     required: false
 
@@ -144,9 +148,10 @@ runs:
       run: |
         ARGS="convert ${{ inputs.openapi-file }}"
 
-        [ -n "${{ inputs.common-prefix }}" ] && ARGS="$ARGS --common-prefix ${{ inputs.common-prefix }}"
-        [ -n "${{ inputs.docs-dir }}" ] && ARGS="$ARGS -d ${{ inputs.docs-dir }}"
         [ -n "${{ inputs.output-dir }}" ] && ARGS="$ARGS -o ${{ inputs.output-dir }}"
+        [ -n "${{ inputs.docs-dir }}" ] && ARGS="$ARGS -d ${{ inputs.docs-dir }}"
+        [ -n "${{ inputs.nginx-output-dir }}" ] && ARGS="$ARGS --nginx-output ${{ inputs.nginx-output-dir }}"
+        [ -n "${{ inputs.common-prefix }}" ] && ARGS="$ARGS --common-prefix ${{ inputs.common-prefix }}"
         [ -n "${{ inputs.file-prefix }}" ] && ARGS="$ARGS --file-prefix ${{ inputs.file-prefix }}"
         [ -n "${{ inputs.index-path }}" ] && ARGS="$ARGS -i ${{ inputs.index-path }}"
         [ "${{ inputs.merge-responses }}" == "true" ] && ARGS="$ARGS --merge-responses-inline"

@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-func (n *OpenAPIConverter) WriteVitePressDocs(outputDir string) error {
+func (n *OpenAPIConverter) WriteOpenAPISpec(outputDir string) error {
 	specPath := filepath.Join(outputDir, n.CommonPrefix, fmt.Sprintf("%sspec.json", n.FilePrefix))
 	err := n.writeOpenAPISpec(specPath)
 	if err != nil {
@@ -21,9 +21,13 @@ func (n *OpenAPIConverter) WriteVitePressDocs(outputDir string) error {
 	}
 
 	fmt.Printf("Successfully wrote specs for vitepress to %s\n", specPath)
+	return nil
+}
 
+func (n *OpenAPIConverter) WriteVitePressMarkdown(outputDir string) error {
+	specPath := filepath.Join(outputDir, n.CommonPrefix, fmt.Sprintf("%sspec.json", n.FilePrefix))
 	markdownPath := filepath.Join(outputDir, n.CommonPrefix)
-	err = n.WriteMarkdown(specPath, markdownPath)
+	err := n.WriteMarkdown(specPath, markdownPath)
 	if err != nil {
 		return fmt.Errorf("error: failed to write markdown: %w", err)
 	}

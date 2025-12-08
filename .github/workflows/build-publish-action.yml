@@ -97,17 +97,17 @@ jobs:
           files: dist/openapi-converter-*
           body: |
             ## OpenAPI Converter ${{ needs.version.outputs.version }}
-            
+
             ### Installation
-            
+
             #### CLI Binary
             Download the appropriate binary for your platform from the assets below.
-            
+
             #### Go Install
             ```bash
             go install github.com/nimling/openapi-converter@${{ needs.version.outputs.version }}
             ```
-            
+
             #### GitHub Action
             ```yaml
             - uses: nimling/openapi-converter@${{ needs.version.outputs.version }}
@@ -117,8 +117,15 @@ jobs:
                 common-prefix: api
                 write-introduction: true
             ```
-            
+
             ### Full Changelog
             https://github.com/${{ github.repository }}/commits/${{ needs.version.outputs.version }}
           draft: false
           prerelease: false
+
+      - name: Update latest tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa latest -m "Latest release: ${{ needs.version.outputs.version }}"
+          git push origin latest --force

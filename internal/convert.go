@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	nginxOutputDir       string
 	outputDir            string
 	docsDir              string
 	indexPath            string
@@ -43,7 +44,8 @@ Examples:
 		RunE: runConvertCommand,
 	}
 	
-	cmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory for Nginx configuration files")
+	cmd.Flags().StringVar(&nginxOutputDir, "nginx-output", "", "Output directory for Nginx configuration files")
+	cmd.Flags().StringVarP(&outputDir, "output", "o", os.Getenv("NIMO_OUTPUT"), "Output directory for spec.json (can also be set via NIMO_OUTPUT env var)")
 	cmd.Flags().StringVarP(&docsDir, "docs", "d", "", "Output directory for VitePress API documentation")
 	cmd.Flags().StringVarP(&indexPath, "index", "i", "", "Path to generate/update VitePress index.md with features")
 	cmd.Flags().StringVar(&filePrefix, "file-prefix", "", "Prefix for generated file names")
@@ -54,27 +56,27 @@ Examples:
 	return cmd
 }
 
-func RunConvert(args []string, outputPath, docsPath, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
-	if outputPath != "" {
-		if err := os.MkdirAll(outputPath, 0755); err != nil {
-			return fmt.Errorf("failed to create output directory: %w", err)
+func RunConvert(args []string, nginxOutput, specOutput, docsPath, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
+	if nginxOutput != "" {
+		if err := os.MkdirAll(nginxOutput, 0755); err != nil {
+			return fmt.Errorf("failed to create nginx output directory: %w", err)
 		}
 	}
-	
+
 	for _, path := range args {
-		if err := processPath(path, outputPath, docsPath, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses); err != nil {
+		if err := processPath(path, nginxOutput, specOutput, docsPath, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
 func runConvertCommand(cmd *cobra.Command, args []string) error {
-	return RunConvert(args, outputDir, docsDir, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline)
+	return RunConvert(args, nginxOutputDir, outputDir, docsDir, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline)
 }
 
-func processPath(pattern string, outputPath, docsPath, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
+func processPath(pattern string, nginxOutput, specOutput, docsPath, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
@@ -96,7 +98,7 @@ func processPath(pattern string, outputPath, docsPath, indexFilePath, filePrefix
 					return err
 				}
 				if !info.IsDir() && (strings.HasSuffix(info.Name(), ".yml") || strings.HasSuffix(info.Name(), ".yaml")) {
-					return processFile(path, outputPath, docsPath, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses)
+					return processFile(path, nginxOutput, specOutput, docsPath, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses)
 				}
 				return nil
 			})
@@ -104,7 +106,7 @@ func processPath(pattern string, outputPath, docsPath, indexFilePath, filePrefix
 				return err
 			}
 		} else if strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml") {
-			err = processFile(path, outputPath, docsPath, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses)
+			err = processFile(path, nginxOutput, specOutput, docsPath, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses)
 			if err != nil {
 				return err
 			}
@@ -114,7 +116,7 @@ func processPath(pattern string, outputPath, docsPath, indexFilePath, filePrefix
 	return nil
 }
 
-func processFile(filePath string, outputPath, docsPath, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
+func processFile(filePath string, nginxOutput, specOutput, docsPath, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
 	conv, err := converter.NewOpenApiConverter(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to load OpenAPI specification: %w", err)
@@ -136,28 +138,45 @@ func processFile(filePath string, outputPath, docsPath, indexFilePath, filePrefi
 		fmt.Printf("✓ Merged response definitions for %s\n", filePath)
 	}
 	
-	if outputPath != "" {
+	if nginxOutput != "" {
 		config, err := conv.WriteNginxConfiguration()
 		if err != nil {
 			return fmt.Errorf("failed to generate Nginx config: %w", err)
 		}
-		
-		outputFile := filepath.Join(outputPath, filepath.Base(filePath[:len(filePath)-len(filepath.Ext(filePath))])+".conf.template")
+
+		outputFile := filepath.Join(nginxOutput, filepath.Base(filePath[:len(filePath)-len(filepath.Ext(filePath))])+".conf.template")
 		if err := os.WriteFile(outputFile, []byte(config), 0644); err != nil {
 			return fmt.Errorf("failed to write Nginx config: %w", err)
 		}
-		
+
 		fmt.Printf("✓ Generated Nginx config: %s\n", outputFile)
 	}
 	
-	if len(docsPath) > 0 {
-		err = conv.WriteVitePressDocs(docsPath)
+	outputDirForSpec := filepath.Dir(filePath)
+	if len(specOutput) > 0 {
+		outputDirForSpec = specOutput
+	} else if len(docsPath) > 0 {
+		outputDirForSpec = docsPath
+	}
+
+	err = conv.WriteOpenAPISpec(outputDirForSpec)
+	if err != nil {
+		return fmt.Errorf("failed to write OpenAPI spec: %w", err)
+	}
+
+	docsOutputPath := docsPath
+	if len(docsOutputPath) == 0 && len(specOutput) > 0 {
+		docsOutputPath = specOutput
+	}
+
+	if len(docsOutputPath) > 0 {
+		err = conv.WriteVitePressMarkdown(docsOutputPath)
 		if err != nil {
 			return fmt.Errorf("failed to write VitePress docs: %w", err)
 		}
-		fmt.Printf("✓ Generated VitePress docs in %s\n", docsPath)
+		fmt.Printf("✓ Generated VitePress docs in %s\n", docsOutputPath)
 	}
-	
+
 	if indexFilePath != "" {
 		err = conv.WriteVitePressFeatures(indexFilePath)
 		if err != nil {
@@ -165,6 +184,6 @@ func processFile(filePath string, outputPath, docsPath, indexFilePath, filePrefi
 		}
 		fmt.Printf("✓ Updated index features in %s\n", indexFilePath)
 	}
-	
+
 	return nil
 }
