@@ -51,7 +51,7 @@ just install
 Add to your workflow:
 
 ```yaml
-- uses: nimling/nimo-api@v2
+- uses: nimling/nimo-api@latest
   with:
     command: 'convert'
     openapi-file: './api.yml'
@@ -161,9 +161,11 @@ nimo merge spec1.json spec2.json spec3.json -o merged.json
 # Override metadata
 nimo merge *.json --title "My API" --version "v1.0.0" -o api.json
 
-# Use environment variables (thon-api pattern)
+# Use environment variables
 export VERSION=v1.0.0
-export API_TITLE="Thon+ API"
+export API_TITLE="Company API"
+export CONTACT_NAME="API Team"
+export CONTACT_EMAIL="api@example.com"
 nimo merge spec1.json spec2.json spec3.json -f
 ```
 
@@ -227,7 +229,7 @@ The tool is available as a GitHub Action supporting all four commands.
 ### Basic Usage
 
 ```yaml
-- uses: nimling/nimo-api@v2
+- uses: nimling/nimo-api@latest
   with:
     command: 'convert'
     openapi-file: './api.yml'
@@ -238,7 +240,7 @@ The tool is available as a GitHub Action supporting all four commands.
 
 Generate OpenAPI from Go code:
 ```yaml
-- uses: nimling/nimo-api@v2
+- uses: nimling/nimo-api@latest
   with:
     command: 'generate'
     main: './main.go'
@@ -248,7 +250,7 @@ Generate OpenAPI from Go code:
 
 Convert to documentation:
 ```yaml
-- uses: nimling/nimo-api@v2
+- uses: nimling/nimo-api@latest
   with:
     command: 'convert'
     openapi-file: 'api.yaml'
@@ -258,7 +260,7 @@ Convert to documentation:
 
 Merge multiple specs:
 ```yaml
-- uses: nimling/nimo-api@v2
+- uses: nimling/nimo-api@latest
   with:
     command: 'merge'
     specs: 'spec1.json spec2.json spec3.json'
@@ -269,7 +271,7 @@ Merge multiple specs:
 
 Sync documentation:
 ```yaml
-- uses: nimling/nimo-api@v2
+- uses: nimling/nimo-api@latest
   with:
     command: 'sync'
     sync-map: './sync-config.json'
