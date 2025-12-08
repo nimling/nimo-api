@@ -6,9 +6,13 @@ import (
 	"strings"
 )
 
-var Version = "v2.0.0"
+var Version = "dev"
 
 func GetVersion() string {
+	if Version != "dev" {
+		return Version
+	}
+
 	data, err := os.ReadFile(".env")
 	if err != nil {
 		return Version

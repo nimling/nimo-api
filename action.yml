@@ -39,9 +39,14 @@ inputs:
     description: 'Output directory for spec.json (for convert command, can also use NIMO_OUTPUT env var)'
     required: false
 
-  docs-dir:
+  docs:
     description: 'Output directory for VitePress markdown files (for convert command)'
     required: false
+
+  generate-docs:
+    description: 'Generate VitePress markdown files in output directory (for convert command)'
+    required: false
+    default: 'false'
 
   nginx-output-dir:
     description: 'Output directory for nginx configuration files (for convert command)'
@@ -149,7 +154,8 @@ runs:
         ARGS="convert ${{ inputs.openapi-file }}"
 
         [ -n "${{ inputs.output-dir }}" ] && ARGS="$ARGS -o ${{ inputs.output-dir }}"
-        [ -n "${{ inputs.docs-dir }}" ] && ARGS="$ARGS -d ${{ inputs.docs-dir }}"
+        [ -n "${{ inputs.docs }}" ] && ARGS="$ARGS --docs ${{ inputs.docs }}"
+        [ "${{ inputs.generate-docs }}" == "true" ] && ARGS="$ARGS -d"
         [ -n "${{ inputs.nginx-output-dir }}" ] && ARGS="$ARGS --nginx-output ${{ inputs.nginx-output-dir }}"
         [ -n "${{ inputs.common-prefix }}" ] && ARGS="$ARGS --common-prefix ${{ inputs.common-prefix }}"
         [ -n "${{ inputs.file-prefix }}" ] && ARGS="$ARGS --file-prefix ${{ inputs.file-prefix }}"
