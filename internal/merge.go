@@ -22,12 +22,8 @@ var (
 func NewMergeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "merge [spec-files...]",
-		Short: "Merge multiple OpenAPI specifications into one",
+		Short: "Merge multiple OpenAPI specifications",
 		Long: `Merge multiple OpenAPI specification files into a single unified spec.
-
-This command combines paths, schemas, security schemes, and tags from multiple
-OpenAPI files. Useful for aggregating API documentation from multiple services
-or modules into a single comprehensive specification.
 
 Environment Variables:
   MERGE_OUTPUT      - Default output file path (default: api.spec.json)
@@ -38,21 +34,13 @@ Environment Variables:
   VERSION           - Fallback for API_VERSION
   CONTACT_NAME      - Default contact name
   CONTACT_EMAIL     - Default contact email
-  OUTPUT_FORMAT     - Default output format: yaml or json (default: json)
-
-Examples:
-  # Merge multiple specs
-  nimo merge spec1.json spec2.json spec3.json -o merged.json
-
-  # Override metadata
+  OUTPUT_FORMAT     - Default output format: yaml or json (default: json)`,
+		Example: `  nimo merge spec1.json spec2.json spec3.json -o merged.json
   nimo merge *.json --title "My API" --version "v1.0.0" -o api.json
-
-  # Use environment variables (like thon-api pattern)
-  export VERSION=v1.0.0
-  export API_TITLE="Thon+ API"
-  export CONTACT_NAME="Martin Ottersland"
-  export CONTACT_EMAIL="martin.ottersland@thon.com"
-  nimo merge spec1.json spec2.json spec3.json -f`,
+  export API_TITLE="Company API"
+  export CONTACT_NAME="API Team"
+  export CONTACT_EMAIL="api@example.com"
+  nimo merge spec1.json spec2.json -o api.json`,
 		RunE: runMergeCommand,
 		Args: cobra.MinimumNArgs(1),
 	}
