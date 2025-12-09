@@ -9,14 +9,17 @@ import (
 )
 
 var (
-	mergeOutput       string
-	mergeForce        bool
-	mergeTitle        string
-	mergeDescription  string
-	mergeVersion      string
-	mergeContactName  string
+	mergeOutput      string
+	mergeForce       bool
+	mergeTitle       string
+	mergeDescription string
+	mergeVersion     string
+	mergeContactName string
 	mergeContactEmail string
-	mergeFormat       string
+	mergeFormat      string
+	mergeStrategy    string
+	mergeServer      string
+	mergeTextFormat  string
 )
 
 func NewMergeCommand() *cobra.Command {
@@ -53,12 +56,23 @@ Environment Variables:
 	cmd.Flags().StringVar(&mergeContactName, "contact-name", getEnvOrDefault("CONTACT_NAME", ""), "Override contact name")
 	cmd.Flags().StringVar(&mergeContactEmail, "contact-email", getEnvOrDefault("CONTACT_EMAIL", ""), "Override contact email")
 	cmd.Flags().StringVar(&mergeFormat, "format", getEnvOrDefault("OUTPUT_FORMAT", "json"), "Output format (yaml or json)")
+	cmd.Flags().StringVar(&mergeStrategy, "strategy", getEnvOrDefault("MERGE_STRATEGY", "last"), "Conflict resolution strategy: 'first' or 'last'")
+	cmd.Flags().StringVar(&mergeServer, "server", getEnvOrDefault("API_SERVER", ""), "Override server URL")
+	cmd.Flags().StringVar(&mergeTextFormat, "text-format", getEnvOrDefault("TEXT_FORMAT", "asis"), "Text format for all descriptions and summaries: 'asis', 'html', or 'markdown'")
 
 	return cmd
 }
 
 func runMergeCommand(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Merging %d OpenAPI specs...\n", len(args))
+
+	if mergeStrategy != "first" && mergeStrategy != "last" {
+		return fmt.Errorf("invalid strategy: %s (must be 'first' or 'last')", mergeStrategy)
+	}
+
+	if mergeTextFormat != "asis" && mergeTextFormat != "html" && mergeTextFormat != "markdown" {
+		return fmt.Errorf("invalid text-format: %s (must be 'asis', 'html', or 'markdown')", mergeTextFormat)
+	}
 
 	opts := merger.MergeOptions{
 		Title:        mergeTitle,
@@ -68,6 +82,9 @@ func runMergeCommand(cmd *cobra.Command, args []string) error {
 		ContactEmail: mergeContactEmail,
 		Force:        mergeForce,
 		OutputFormat: mergeFormat,
+		Strategy:     mergeStrategy,
+		ServerURL:    mergeServer,
+		TextFormat:   mergeTextFormat,
 	}
 
 	return merger.MergeSpecs(args, mergeOutput, opts)
