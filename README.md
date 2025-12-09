@@ -151,15 +151,21 @@ nimo merge [spec-files...] [flags]
 - `--version` - Override API version
 - `--contact-name` - Override contact name
 - `--contact-email` - Override contact email
+- `--server` - Override server URL
 - `--format` - Output format: yaml or json (default: `json`)
+- `--strategy` - Conflict resolution: `first` or `last` (default: `last`)
+- `--text-format` - Text formatting: `asis`, `html`, or `markdown` (default: `asis`)
 
 **Examples:**
 ```bash
 # Merge multiple specs
 nimo merge spec1.json spec2.json spec3.json -o merged.json
 
-# Override metadata
-nimo merge *.json --title "My API" --version "v1.0.0" -o api.json
+# Override metadata and server
+nimo merge *.json --title "My API" --version "v1.0.0" --server "https://api.example.com" -o api.json
+
+# Convert markdown to HTML in descriptions
+nimo merge spec1.json spec2.json --text-format html -f
 
 # Use environment variables
 export VERSION=v1.0.0
