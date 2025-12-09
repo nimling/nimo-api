@@ -523,27 +523,111 @@ func convertText(text, format string) string {
 func markdownToHTML(markdown string) string {
 	html := markdown
 
-	html = strings.ReplaceAll(html, "\\n\\n", "<br><br>")
-	html = strings.ReplaceAll(html, "\\n", "<br>")
+	html = strings.ReplaceAll(html, "\\n\\n", "\n\n")
+	html = strings.ReplaceAll(html, "\\n", "\n")
 
 	lines := strings.Split(html, "\n")
-	for i, line := range lines {
-		line = strings.ReplaceAll(line, "**", "<strong>")
-		line = strings.ReplaceAll(line, "**", "</strong>")
+	var result []string
+	inList := false
 
-		if strings.HasPrefix(strings.TrimSpace(line), "## ") {
-			line = "<h2>" + strings.TrimPrefix(strings.TrimSpace(line), "## ") + "</h2>"
-		} else if strings.HasPrefix(strings.TrimSpace(line), "# ") {
-			line = "<h1>" + strings.TrimPrefix(strings.TrimSpace(line), "# ") + "</h1>"
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed == "" {
+			if inList {
+				result = append(result, "</ul>")
+				inList = false
+			}
+			result = append(result, "<br>")
+			continue
 		}
 
-		if strings.HasPrefix(strings.TrimSpace(line), "- ") {
-			line = "<li>" + strings.TrimPrefix(strings.TrimSpace(line), "- ") + "</li>"
+		if strings.HasPrefix(trimmed, "### ") {
+			if inList {
+				result = append(result, "</ul>")
+				inList = false
+			}
+			content := strings.TrimPrefix(trimmed, "### ")
+			content = convertInlineMarkdown(content)
+			result = append(result, "<h3>"+content+"</h3>")
+		} else if strings.HasPrefix(trimmed, "## ") {
+			if inList {
+				result = append(result, "</ul>")
+				inList = false
+			}
+			content := strings.TrimPrefix(trimmed, "## ")
+			content = convertInlineMarkdown(content)
+			result = append(result, "<h2>"+content+"</h2>")
+		} else if strings.HasPrefix(trimmed, "# ") {
+			if inList {
+				result = append(result, "</ul>")
+				inList = false
+			}
+			content := strings.TrimPrefix(trimmed, "# ")
+			content = convertInlineMarkdown(content)
+			result = append(result, "<h1>"+content+"</h1>")
+		} else if strings.HasPrefix(trimmed, "- ") {
+			if !inList {
+				result = append(result, "<ul>")
+				inList = true
+			}
+			content := strings.TrimPrefix(trimmed, "- ")
+			content = convertInlineMarkdown(content)
+			result = append(result, "<li>"+content+"</li>")
+		} else {
+			if inList {
+				result = append(result, "</ul>")
+				inList = false
+			}
+			result = append(result, convertInlineMarkdown(trimmed))
 		}
-
-		lines[i] = line
 	}
-	html = strings.Join(lines, "\n")
 
-	return html
+	if inList {
+		result = append(result, "</ul>")
+	}
+
+	return strings.Join(result, "\n")
+}
+
+func convertInlineMarkdown(text string) string {
+	result := text
+
+	for strings.Contains(result, "**") {
+		first := strings.Index(result, "**")
+		if first == -1 {
+			break
+		}
+		second := strings.Index(result[first+2:], "**")
+		if second == -1 {
+			break
+		}
+		second += first + 2
+
+		before := result[:first]
+		content := result[first+2 : second]
+		after := result[second+2:]
+		result = before + "<strong>" + content + "</strong>" + after
+	}
+
+	for strings.Contains(result, "*") && !strings.Contains(result, "**") {
+		first := strings.Index(result, "*")
+		if first == -1 {
+			break
+		}
+		second := strings.Index(result[first+1:], "*")
+		if second == -1 {
+			break
+		}
+		second += first + 1
+
+		before := result[:first]
+		content := result[first+1 : second]
+		after := result[second+1:]
+		result = before + "<em>" + content + "</em>" + after
+	}
+
+	result = strings.ReplaceAll(result, "`", "<code>")
+
+	return result
 }
