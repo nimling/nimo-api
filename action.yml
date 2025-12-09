@@ -130,6 +130,7 @@ runs:
       shell: bash
       run: |
         go install github.com/nimling/nimo-api/cmd@latest
+        ls -la $(go env GOPATH)/bin/
         echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
     - name: Run Generate Command
