@@ -145,7 +145,7 @@ runs:
         [ -n "${{ inputs.output }}" ] && ARGS="$ARGS -o ${{ inputs.output }}"
         [ -n "${{ inputs.format }}" ] && ARGS="$ARGS -f ${{ inputs.format }}"
 
-        nimo $ARGS
+        $(go env GOPATH)/bin/nimo $ARGS
 
     - name: Run Convert Command
       if: inputs.command == 'convert'
@@ -163,7 +163,7 @@ runs:
         [ "${{ inputs.merge-responses }}" == "true" ] && ARGS="$ARGS --merge-responses-inline"
         [ "${{ inputs.write-introduction }}" == "true" ] && ARGS="$ARGS --write-introduction"
 
-        nimo $ARGS
+        $(go env GOPATH)/bin/nimo $ARGS
 
     - name: Run Merge Command
       if: inputs.command == 'merge'
@@ -180,7 +180,7 @@ runs:
         [ -n "${{ inputs.contact-email }}" ] && ARGS="$ARGS --contact-email ${{ inputs.contact-email }}"
         [ -n "${{ inputs.format }}" ] && ARGS="$ARGS --format ${{ inputs.format }}"
 
-        nimo $ARGS
+        $(go env GOPATH)/bin/nimo $ARGS
 
     - name: Run Sync Command
       if: inputs.command == 'sync'
@@ -190,8 +190,8 @@ runs:
         if [[ "$SYNC_MAP" == \{* ]]; then
           TEMP_FILE=$(mktemp /tmp/sync-map.XXXXXX.json)
           echo "$SYNC_MAP" > "$TEMP_FILE"
-          nimo sync -s "$TEMP_FILE"
+          $(go env GOPATH)/bin/nimo sync -s "$TEMP_FILE"
           rm -f "$TEMP_FILE"
         else
-          nimo sync -s "$SYNC_MAP"
+          $(go env GOPATH)/bin/nimo sync -s "$SYNC_MAP"
         fi
