@@ -130,7 +130,10 @@ runs:
       shell: bash
       run: |
         go install github.com/nimling/nimo-api/cmd@latest
+        mv $(go env GOPATH)/bin/cmd $(go env GOPATH)/bin/nimo
         ls -la $(go env GOPATH)/bin/
+        echo "Nimo installed successfully"
+        $(go env GOPATH)/bin/nimo --version
         echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
     - name: Run Generate Command
@@ -164,7 +167,9 @@ runs:
         [ "${{ inputs.merge-responses }}" == "true" ] && ARGS="$ARGS --merge-responses-inline"
         [ "${{ inputs.write-introduction }}" == "true" ] && ARGS="$ARGS --write-introduction"
 
+        echo "Running nimo with args: $ARGS"
         $(go env GOPATH)/bin/nimo $ARGS
+        echo "Convert command completed successfully"
 
     - name: Run Merge Command
       if: inputs.command == 'merge'
