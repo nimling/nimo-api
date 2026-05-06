@@ -106,7 +106,7 @@ runs:
     - name: Install Nimo
       shell: bash
       run: |
-        go install github.com/nimling/nimo-api/cmd@${{ inputs.nimo-version }}
+        go install github.com/nimling/nimo-api/cmd@v${{ inputs.nimo-version }}
         mv "$(go env GOPATH)/bin/cmd" "$(go env GOPATH)/bin/nimo"
         echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
     - name: Run Generate Command
