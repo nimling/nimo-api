@@ -27,4 +27,4 @@ clean:
     rm -rf dist
 
 deploy:
-    ../samna/sbump/sbump.sh patch --env APP_VERSION --push-version
+    ../samna/sbump/sbump.sh patch --env APP_VERSION --yaml ./action.yml@.inputs.nimo-version.default --push-version

@@ -150,18 +150,8 @@ func (n *OpenAPIConverter) convertPath(path string, pathItem *PathItem) (string,
 	// Collect security requirements for each method
 	methodSecurity := make(map[string][]string)
 
-	// Get global security requirements
 	globalClaims := make([]string, 0)
-	if n.doc.Security != nil && len(*n.doc.Security) > 0 {
-		for _, sec := range *n.doc.Security {
-			fmt.Println(sec)
-			//for _, entraAuth := range sec.Requirements.Value("oauth2") {
-			//	globalClaims = append(globalClaims, entraAuth)
-			//}
-		}
-	}
 
-	// Helper function to process operations
 	for _, op := range pathItem.Operations() {
 		methods = append(methods, op.Method)
 		if op.Summary != nil {
@@ -169,14 +159,6 @@ func (n *OpenAPIConverter) convertPath(path string, pathItem *PathItem) (string,
 		}
 		if op.Description != nil {
 			descriptions = append(descriptions, fmt.Sprintf("%s: %s", op.Method, *op.Description))
-		}
-
-		// Check for operation-specific security
-		for _, sec := range op.Security {
-			fmt.Println(sec)
-			//for _, entraAuth := range sec.Requirements.Value("oauth2") {
-			//	methodSecurity[method] = append(methodSecurity[method], entraAuth)
-			//}
 		}
 		// If no specific claims but global claims exist, use those
 		//if _, hasSpecific := methodSecurity[method]; !hasSpecific && len(globalClaims) > 0 {

@@ -6,6 +6,11 @@ branding:
   color: 'blue'
 
 inputs:
+  nimo-version:
+    description: 'Pinned nimo CLI version'
+    required: false
+    default: 'v1.0.0'
+
   command:
     description: 'Command to run: generate, convert, merge, or sync'
     required: true
@@ -129,9 +134,9 @@ runs:
     - name: Install Nimo
       shell: bash
       run: |
-        go install github.com/nimling/nimo-api/cmd@latest
-        mv $(go env GOPATH)/bin/cmd $(go env GOPATH)/bin/nimo
-        echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+        go install github.com/nimling/nimo-api/cmd@${{ inputs.nimo-version }}
+        mv "$(go env GOPATH)/bin/cmd" "$(go env GOPATH)/bin/nimo"
+        echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
     - name: Run Generate Command
       if: inputs.command == 'generate'
