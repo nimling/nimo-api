@@ -1,8 +1,6 @@
 module github.com/nimling/nimo-api
 
-go 1.23.0
-
-toolchain go1.23.5
+go 1.25.0
 
 require (
 	github.com/getkin/kin-openapi v0.128.0
