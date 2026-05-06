@@ -38,7 +38,7 @@ func (n *OpenAPIConverter) WriteVitePressMarkdown(outputDir string) error {
 
 func (n *OpenAPIConverter) WriteMarkdown(specPath string, outputPath string) error {
 
-	err := os.MkdirAll(path.Dir(outputPath), 0755)
+	err := os.MkdirAll(outputPath, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create outputPath: %w", err)
 	}

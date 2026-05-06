@@ -16,7 +16,7 @@ func TestConvertCommand(t *testing.T) {
 			name: "Convert OpenAPI spec to docs",
 			args: []string{
 				"../examples/spec.yml",
-				"-d", "../../tmp/test-docs",
+				"--docs", "../../tmp/test-docs",
 				"--common-prefix", "test",
 				"--write-introduction",
 			},
@@ -34,7 +34,7 @@ func TestConvertCommand(t *testing.T) {
 			name: "Convert with all options",
 			args: []string{
 				"../examples/spec.yml",
-				"-d", "../../tmp/test-all-docs",
+				"--docs", "../../tmp/test-all-docs",
 				"-o", "../../tmp/test-all-nginx",
 				"--common-prefix", "api",
 				"--file-prefix", "example",
@@ -63,7 +63,7 @@ func TestConvertCommand(t *testing.T) {
 			
 			if !tt.wantErr && err == nil {
 				for i, arg := range tt.args {
-					if arg == "-d" || arg == "-o" {
+					if arg == "--docs" || arg == "-o" {
 						if i+1 < len(tt.args) {
 							dir := tt.args[i+1]
 							if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -81,8 +81,9 @@ func TestConvertCommand(t *testing.T) {
 
 func TestRunConvertDirectly(t *testing.T) {
 	args := []string{"../examples/spec.yml"}
-	
-	err := internal.RunConvert(args, "", "", "", false, "", "", "", false, false)
+	defer os.RemoveAll("../../tmp")
+
+	err := internal.RunConvert(args, "", "../../tmp/test-direct", "", false, "", "", "", false, false)
 	if err != nil {
 		t.Errorf("RunConvert failed: %v", err)
 	}

@@ -87,7 +87,7 @@ func (s *DocSyncer) Execute() error {
 		} else {
 			actualDest := dest
 			if strings.HasSuffix(dest, "/") {
-				actualDest = filepath.Join(dest, filepath.Base(source))
+				actualDest = filepath.Join(dest, "index.md")
 			}
 			if err := s.copyFile(source, actualDest); err != nil {
 				return fmt.Errorf("failed to copy %s to %s: %w", source, actualDest, err)
