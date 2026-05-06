@@ -9,13 +9,20 @@ import (
 )
 
 func main() {
-	internal.PrintBanner()
-
 	rootCmd := &cobra.Command{
 		Use:     "nimo",
 		Short:   "OpenAPI toolkit",
 		Version: internal.GetVersion(),
+		Run: func(cmd *cobra.Command, args []string) {
+			_ = cmd.Help()
+		},
 	}
+
+	defaultHelp := rootCmd.HelpFunc()
+	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		internal.PrintBanner()
+		defaultHelp(cmd, args)
+	})
 
 	rootCmd.AddCommand(internal.NewGenerateCommand())
 	rootCmd.AddCommand(internal.NewConvertCommand())

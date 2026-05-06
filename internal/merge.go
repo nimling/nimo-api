@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/nimling/nimo-api/pkg/merger"
 	"github.com/spf13/cobra"
@@ -52,7 +53,7 @@ Environment Variables:
 	cmd.Flags().BoolVarP(&mergeForce, "force", "f", getEnvBool("FORCE_OVERWRITE", false), "Force overwrite existing file")
 	cmd.Flags().StringVar(&mergeTitle, "title", getEnvOrDefault("API_TITLE", ""), "Override API title")
 	cmd.Flags().StringVar(&mergeDescription, "description", getEnvOrDefault("API_DESCRIPTION", ""), "Override API description")
-	cmd.Flags().StringVar(&mergeVersion, "version", getVersionFromEnv(), "Override API version")
+	cmd.Flags().StringVar(&mergeVersion, "api-version", getVersionFromEnv(), "Override API version")
 	cmd.Flags().StringVar(&mergeContactName, "contact-name", getEnvOrDefault("CONTACT_NAME", ""), "Override contact name")
 	cmd.Flags().StringVar(&mergeContactEmail, "contact-email", getEnvOrDefault("CONTACT_EMAIL", ""), "Override contact email")
 	cmd.Flags().StringVar(&mergeFormat, "format", getEnvOrDefault("OUTPUT_FORMAT", "json"), "Output format (yaml or json)")
@@ -103,6 +104,15 @@ func getVersionFromEnv() string {
 func getEnvBool(key string, defaultValue bool) bool {
 	if value := os.Getenv(key); value != "" {
 		return value == "true" || value == "1"
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
 	}
 	return defaultValue
 }

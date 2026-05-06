@@ -1,0 +1,129 @@
+{
+    "components": {
+        "schemas": {
+            "User": {
+                "properties": {
+                    "email": {
+                        "format": "email",
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "email"
+                ],
+                "type": "object"
+            }
+        }
+    },
+    "info": {
+        "contact": {
+            "email": ""
+        },
+        "description": "Example API for testing",
+        "license": {
+            "name": "",
+            "url": ""
+        },
+        "termsOfService": "",
+        "title": "Example API",
+        "version": "1.0.0"
+    },
+    "openapi": "3.1.0",
+    "paths": {
+        "/users": {
+            "get": {
+                "description": "Retrieve a paginated list of all users in the system. Returns an array of user objects with their basic information.",
+                "operationId": "listUsers",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/User"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful response"
+                    }
+                },
+                "summary": "List users"
+            },
+            "post": {
+                "description": "Create a new user in the system. Requires a complete user object in the request body. Returns the created user with a generated ID.",
+                "operationId": "createUser",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/User"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/User"
+                                }
+                            }
+                        },
+                        "description": "User created"
+                    }
+                },
+                "summary": "Create user"
+            }
+        },
+        "/users/{id}": {
+            "get": {
+                "description": "Retrieve a specific user by their unique identifier. Returns the complete user object if found.",
+                "operationId": "getUserById",
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/User"
+                                }
+                            }
+                        },
+                        "description": "Successful response"
+                    },
+                    "404": {
+                        "description": "User not found"
+                    }
+                },
+                "summary": "Get user by ID"
+            }
+        }
+    },
+    "servers": [
+        {
+            "description": "Production server",
+            "url": "https://api.example.com/v1"
+        }
+    ]
+}

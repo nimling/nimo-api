@@ -64,8 +64,8 @@ Examples:
 	cmd.Flags().StringVarP(&mainPath, "main", "m", "", "Path to main.go file (required)")
 	cmd.Flags().StringVarP(&readmePath, "readme", "r", "", "Path to README.md file (required)")
 	cmd.Flags().StringVarP(&aiEndpoint, "ai-endpoint", "a", getEnvOrDefault("AI_ENDPOINT", "http://localhost:11434"), "AI API endpoint")
-	cmd.Flags().IntVarP(&maxConcurrent, "max-concurrent", "c", 5, "Maximum concurrent AI API calls")
-	cmd.Flags().StringVarP(&outputFile, "output", "o", getEnvOrDefault("OUTPUT_FILE", "openapi.yaml"), "Output file path")
+	cmd.Flags().IntVarP(&maxConcurrent, "max-concurrent", "c", getEnvInt("MAX_CONCURRENT", 5), "Maximum concurrent AI API calls")
+	cmd.Flags().StringVarP(&outputFile, "output", "o", getEnvOrDefault("NIMO_OUTPUT", getEnvOrDefault("OUTPUT_FILE", "openapi.yaml")), "Output file path")
 	cmd.Flags().StringVarP(&outputFormat, "format", "f", getEnvOrDefault("OUTPUT_FORMAT", "yaml"), "Output format (yaml or json)")
 
 	cmd.MarkFlagRequired("main")

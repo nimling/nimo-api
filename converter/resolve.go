@@ -400,7 +400,7 @@ func (n *OpenAPIConverter) resolveComponentRefs(components *Components) error {
 				filePath := resolveRefPath(n.filePath, *comp.Ref)
 				res, err := loadExternalRef[SecurityScheme](filePath)
 				if err != nil {
-					return fmt.Errorf("failed to load external ref: %s, error: %w", err)
+					return fmt.Errorf("failed to load external securityScheme ref %s: %w", filePath, err)
 				}
 
 				components.PutRegister("securitySchemes", filePath)
@@ -415,7 +415,7 @@ func (n *OpenAPIConverter) resolveComponentRefs(components *Components) error {
 				filePath := resolveRefPath(n.filePath, *comp.Ref)
 				res, err := loadExternalRef[Parameter](filePath)
 				if err != nil {
-					return fmt.Errorf("failed to load external ref: %s, error: %w", err)
+					return fmt.Errorf("failed to load external parameter ref %s: %w", filePath, err)
 				}
 
 				components.PutRegister("parameters", filePath)
@@ -431,7 +431,7 @@ func (n *OpenAPIConverter) resolveComponentRefs(components *Components) error {
 				relPath = resolveRefPath(n.filePath, *comp.Ref)
 				res, err := loadExternalRef[Schema](relPath)
 				if err != nil {
-					return fmt.Errorf("failed to load external ref: %s, error: %w", err)
+					return fmt.Errorf("failed to load external schema ref %s: %w", relPath, err)
 				}
 
 				components.PutRegister("schemas", relPath)
@@ -455,29 +455,56 @@ func (n *OpenAPIConverter) resolveComponentRefs(components *Components) error {
 }
 
 func resolveRefPath(specPath, refPath string) string {
-	filePath, _ := splitRefPath(refPath)
+	filePath, fragment := splitRefPath(refPath)
 
-	if !strings.HasPrefix(filePath, "./") && !strings.HasPrefix(filePath, "../") {
-		return filePath
+	resolved := filePath
+	if !filepath.IsAbs(filePath) {
+		baseDir := filepath.Dir(specPath)
+		resolved = filepath.Join(baseDir, filePath)
 	}
+	resolved = filepath.Clean(resolved)
 
-	baseDir := filepath.Dir(specPath)
-	absPath := filepath.Join(baseDir, filePath)
-
-	return filepath.Clean(absPath)
+	if fragment != "" {
+		return resolved + "#" + fragment
+	}
+	return resolved
 }
 
 func loadExternalRef[T any](filePath string) (*T, error) {
-	content, err := os.ReadFile(filePath)
+	rawPath, fragment := splitRefPath(filePath)
+
+	content, err := os.ReadFile(rawPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %w", filePath, err)
+		return nil, fmt.Errorf("failed to read %s: %w", rawPath, err)
+	}
+
+	if fragment == "" {
+		var result T
+		if err = yaml.Unmarshal(content, &result); err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", rawPath, err)
+		}
+		return &result, nil
+	}
+
+	var root any
+	if err = yaml.Unmarshal(content, &root); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", rawPath, err)
+	}
+
+	sub, err := resolveJSONPointer(root, fragment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to navigate fragment %q in %s: %w", fragment, rawPath, err)
+	}
+
+	subBytes, err := yaml.Marshal(sub)
+	if err != nil {
+		return nil, fmt.Errorf("failed to re-encode fragment of %s: %w", rawPath, err)
 	}
 
 	var result T
-	if err = yaml.Unmarshal(content, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %w", filePath, err)
+	if err = yaml.Unmarshal(subBytes, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode fragment of %s into target type: %w", rawPath, err)
 	}
-
 	return &result, nil
 }
 
@@ -490,12 +517,60 @@ func splitRefPath(refPath string) (string, string) {
 }
 
 func isExternalRef(refPath string) bool {
-	// Check if the reference points to an external file
-	// External refs typically start with ./ or ../ or are absolute paths
-	return strings.HasPrefix(refPath, "./") ||
+	if refPath == "" || strings.HasPrefix(refPath, "#") {
+		return false
+	}
+	if strings.Contains(refPath, "://") {
+		return true
+	}
+	if strings.HasPrefix(refPath, "./") ||
 		strings.HasPrefix(refPath, "../") ||
-		strings.HasPrefix(refPath, "/") ||
-		strings.Contains(refPath, "://")
+		strings.HasPrefix(refPath, "/") {
+		return true
+	}
+	if len(refPath) >= 2 && refPath[1] == ':' {
+		return true
+	}
+	filePart, _ := splitRefPath(refPath)
+	if filePart == "" {
+		return false
+	}
+	ext := strings.ToLower(filepath.Ext(filePart))
+	return ext == ".yml" || ext == ".yaml" || ext == ".json"
+}
+
+func resolveJSONPointer(doc any, fragment string) (any, error) {
+	pointer := strings.TrimPrefix(fragment, "/")
+	if pointer == "" {
+		return doc, nil
+	}
+	current := doc
+	for _, raw := range strings.Split(pointer, "/") {
+		token := strings.NewReplacer("~1", "/", "~0", "~").Replace(raw)
+		switch v := current.(type) {
+		case map[string]any:
+			next, ok := v[token]
+			if !ok {
+				return nil, fmt.Errorf("key %q not found", token)
+			}
+			current = next
+		case map[any]any:
+			next, ok := v[token]
+			if !ok {
+				return nil, fmt.Errorf("key %q not found", token)
+			}
+			current = next
+		case []any:
+			idx := -1
+			if _, err := fmt.Sscanf(token, "%d", &idx); err != nil || idx < 0 || idx >= len(v) {
+				return nil, fmt.Errorf("array index %q out of range", token)
+			}
+			current = v[idx]
+		default:
+			return nil, fmt.Errorf("cannot descend into %T at token %q", current, token)
+		}
+	}
+	return current, nil
 }
 
 // Add helper method to check for remaining external refs

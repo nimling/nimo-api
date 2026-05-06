@@ -1,21 +1,30 @@
+set dotenv-load
+set export
+set windows-shell := ["powershell", "-NoProfile", "-Command"]
+
 APP_NAME := "nimo"
+bin_ext := if os() == "windows" { ".exe" } else { "" }
+
+default:
+    @just --list
 
 build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "Building {{APP_NAME}}..."
-    VERSION=$(grep "APP_VERSION=" .env | cut -d'=' -f2)
-    go build -ldflags "-X github.com/nimling/nimo-api/internal.Version=$VERSION" -o dist/{{APP_NAME}} ./cmd
-
-run: build
-    @echo "Running {{APP_NAME}}..."
-    @dist/{{APP_NAME}}
+    go build -ldflags "-X github.com/nimling/nimo-api/internal.Version=$APP_VERSION" -o dist/{{APP_NAME}}{{bin_ext}} ./cmd
 
 install: build
-    @echo "Installing {{APP_NAME}} to $(go env GOPATH)/bin..."
-    @cp dist/{{APP_NAME}} $(go env GOPATH)/bin/
+    cp dist/{{APP_NAME}}{{bin_ext}} $(go env GOPATH)/bin/
+
+vet:
+    go vet ./...
+
+test:
+    cd test/go && go test -v ./...
+
+dev *args:
+    go run ./cmd {{args}}
+
+clean:
+    rm -rf dist
 
 deploy:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    SBUMP_ENV_FILE=.env SBUMP_VERSION_VAR=APP_VERSION .github/scripts/sbump.sh patch --push-version
+    ../samna/sbump/sbump.sh patch --env APP_VERSION --push-version

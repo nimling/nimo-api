@@ -82,7 +82,7 @@ func TestConvertCommand(t *testing.T) {
 func TestRunConvertDirectly(t *testing.T) {
 	args := []string{"../examples/spec.yml"}
 	
-	err := internal.RunConvert(args, "", "", "", "", "", false, false)
+	err := internal.RunConvert(args, "", "", "", false, "", "", "", false, false)
 	if err != nil {
 		t.Errorf("RunConvert failed: %v", err)
 	}

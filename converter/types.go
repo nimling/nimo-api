@@ -56,6 +56,7 @@ type Components struct {
 	SecuritySchemes map[string]*SecurityScheme `yaml:"securitySchemes,omitempty"`
 	Parameters      map[string]*Parameter      `yaml:"parameters,omitempty"`
 	Schemas         map[string]*Schema         `yaml:"schemas,omitempty"`
+	Responses       map[string]*Response       `yaml:"responses,omitempty"`
 	Register        ReferenceRegister          `yaml:"-"`
 }
 

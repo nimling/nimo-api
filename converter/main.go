@@ -50,6 +50,10 @@ func NewOpenApiConverter(filePath string) (*OpenAPIConverter, error) {
 		return nil, fmt.Errorf("error: %s", err)
 	}
 
+	if err = conv.ValidateInternalRefs(); err != nil {
+		return nil, fmt.Errorf("invalid spec %s: %w", filePath, err)
+	}
+
 	return conv, nil
 }
 
@@ -161,10 +165,10 @@ func (n *OpenAPIConverter) convertPath(path string, pathItem *PathItem) (string,
 	for _, op := range pathItem.Operations() {
 		methods = append(methods, op.Method)
 		if op.Summary != nil {
-			summaries = append(summaries, fmt.Sprintf("%s: %s", op.Method, op.Summary))
+			summaries = append(summaries, fmt.Sprintf("%s: %s", op.Method, *op.Summary))
 		}
 		if op.Description != nil {
-			descriptions = append(descriptions, fmt.Sprintf("%s: %s", op.Method, op.Description))
+			descriptions = append(descriptions, fmt.Sprintf("%s: %s", op.Method, *op.Description))
 		}
 
 		// Check for operation-specific security
