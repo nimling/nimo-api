@@ -16,8 +16,12 @@ func (n *OpenAPIConverter) ResolveExternalRefs() error {
 			SecuritySchemes: map[string]*SecurityScheme{},
 			Parameters:      map[string]*Parameter{},
 			Schemas:         map[string]*Schema{},
+			Examples:        map[string]*Example{},
 			Register:        ReferenceRegister{},
 		}
+	}
+	if n.doc.Components.Examples == nil {
+		n.doc.Components.Examples = map[string]*Example{}
 	}
 
 	// Iteratively resolve references until no external refs remain
@@ -107,15 +111,21 @@ func (n *OpenAPIConverter) resolvePathItemRefs(pathItem *PathItem) error {
 				op.RequestBody = resolved
 			}
 
-			// Process request body content schemas
+			// Process request body content schemas and examples
 			if op.RequestBody.Content != nil {
 				for mediaType, content := range op.RequestBody.Content {
-					if content == nil || content.Schema == nil {
+					if content == nil {
 						continue
 					}
 
-					if err := content.Schema.resolveExternalRefs(n.doc.Components, relPath); err != nil {
-						return fmt.Errorf("failed to resolve request body schema for %s: %w", mediaType, err)
+					if content.Schema != nil {
+						if err := content.Schema.resolveExternalRefs(n.doc.Components, relPath); err != nil {
+							return fmt.Errorf("failed to resolve request body schema for %s: %w", mediaType, err)
+						}
+					}
+
+					if err := n.resolveContentExamples(content, relPath); err != nil {
+						return fmt.Errorf("failed to resolve request body examples for %s: %w", mediaType, err)
 					}
 				}
 			}
@@ -137,15 +147,21 @@ func (n *OpenAPIConverter) resolvePathItemRefs(pathItem *PathItem) error {
 					op.Responses[code] = resolved
 				}
 
-				// Process response content schemas
+				// Process response content schemas and examples
 				if response.Content != nil {
 					for mediaType, content := range response.Content {
-						if content == nil || content.Schema == nil {
+						if content == nil {
 							continue
 						}
 
-						if err := content.Schema.resolveExternalRefs(n.doc.Components, relPath); err != nil {
-							return fmt.Errorf("failed to resolve response schema for %s: %w", mediaType, err)
+						if content.Schema != nil {
+							if err := content.Schema.resolveExternalRefs(n.doc.Components, relPath); err != nil {
+								return fmt.Errorf("failed to resolve response schema for %s: %w", mediaType, err)
+							}
+						}
+
+						if err := n.resolveContentExamples(content, relPath); err != nil {
+							return fmt.Errorf("failed to resolve response examples for %s: %w", mediaType, err)
 						}
 					}
 				}
@@ -359,6 +375,9 @@ func (n *OpenAPIConverter) resolveParameterRefs(params []*Parameter, relPath str
 			}
 		} else {
 			// Not an external reference, keep as is
+			if err := n.resolveParameterExamples(param, relPath); err != nil {
+				return nil, fmt.Errorf("failed to resolve parameter examples %s: %w", param.Name, err)
+			}
 			result = append(result, param)
 		}
 	}
@@ -448,6 +467,23 @@ func (n *OpenAPIConverter) resolveComponentRefs(components *Components) error {
 			}
 
 			components.Schemas[key] = comp
+		}
+	}
+
+	if components.Examples != nil {
+		for key, ex := range components.Examples {
+			if ex == nil {
+				continue
+			}
+			if ex.Ref != nil && isExternalRef(*ex.Ref) {
+				filePath := resolveRefPath(n.filePath, *ex.Ref)
+				res, err := loadExampleRef(filePath)
+				if err != nil {
+					return fmt.Errorf("failed to load external example ref %s: %w", filePath, err)
+				}
+				components.PutRegister("examples", filePath)
+				components.Examples[key] = res
+			}
 		}
 	}
 
@@ -618,6 +654,12 @@ func hasExternalRefsInComponents(components *Components) bool {
 			if param.Schema != nil && hasExternalRefsInSchema(param.Schema) {
 				return true
 			}
+			if hasExternalRefsInExamples(param.Examples) {
+				return true
+			}
+			if singularExampleHasExternalRef(param.Example) {
+				return true
+			}
 		}
 	}
 
@@ -628,6 +670,10 @@ func hasExternalRefsInComponents(components *Components) bool {
 				return true
 			}
 		}
+	}
+
+	if hasExternalRefsInExamples(components.Examples) {
+		return true
 	}
 
 	return false
@@ -706,6 +752,12 @@ func hasExternalRefsInPathItem(pathItem *PathItem) bool {
 				if param.Schema != nil && hasExternalRefsInSchema(param.Schema) {
 					return true
 				}
+				if hasExternalRefsInExamples(param.Examples) {
+					return true
+				}
+				if singularExampleHasExternalRef(param.Example) {
+					return true
+				}
 			}
 		}
 
@@ -716,7 +768,16 @@ func hasExternalRefsInPathItem(pathItem *PathItem) bool {
 			}
 			if operation.RequestBody.Content != nil {
 				for _, content := range operation.RequestBody.Content {
-					if content != nil && content.Schema != nil && hasExternalRefsInSchema(content.Schema) {
+					if content == nil {
+						continue
+					}
+					if content.Schema != nil && hasExternalRefsInSchema(content.Schema) {
+						return true
+					}
+					if hasExternalRefsInExamples(content.Examples) {
+						return true
+					}
+					if singularExampleHasExternalRef(content.Example) {
 						return true
 					}
 				}
@@ -731,7 +792,16 @@ func hasExternalRefsInPathItem(pathItem *PathItem) bool {
 				}
 				if response.Content != nil {
 					for _, content := range response.Content {
-						if content != nil && content.Schema != nil && hasExternalRefsInSchema(content.Schema) {
+						if content == nil {
+							continue
+						}
+						if content.Schema != nil && hasExternalRefsInSchema(content.Schema) {
+							return true
+						}
+						if hasExternalRefsInExamples(content.Examples) {
+							return true
+						}
+						if singularExampleHasExternalRef(content.Example) {
 							return true
 						}
 					}
@@ -741,4 +811,215 @@ func hasExternalRefsInPathItem(pathItem *PathItem) bool {
 	}
 
 	return false
+}
+
+func hasExternalRefsInExamples(examples map[string]*Example) bool {
+	for _, ex := range examples {
+		if ex == nil {
+			continue
+		}
+		if ex.Ref != nil && isExternalRef(*ex.Ref) {
+			return true
+		}
+	}
+	return false
+}
+
+func singularExampleHasExternalRef(ex interface{}) bool {
+	ref, ok := extractSingleRef(ex)
+	if !ok {
+		return false
+	}
+	return isExternalRef(ref)
+}
+
+func extractSingleRef(v interface{}) (string, bool) {
+	switch m := v.(type) {
+	case map[string]interface{}:
+		if len(m) != 1 {
+			return "", false
+		}
+		raw, ok := m["$ref"]
+		if !ok {
+			return "", false
+		}
+		s, ok := raw.(string)
+		return s, ok
+	case map[interface{}]interface{}:
+		if len(m) != 1 {
+			return "", false
+		}
+		raw, ok := m["$ref"]
+		if !ok {
+			return "", false
+		}
+		s, ok := raw.(string)
+		return s, ok
+	}
+	return "", false
+}
+
+func (n *OpenAPIConverter) resolveContentExamples(content *ResponseContent, relPath string) error {
+	if content == nil {
+		return nil
+	}
+	if err := n.resolveSingularExample(&content.Example, relPath); err != nil {
+		return err
+	}
+	return n.resolveExamplesMap(content.Examples, relPath)
+}
+
+func (n *OpenAPIConverter) resolveParameterExamples(param *Parameter, relPath string) error {
+	if param == nil {
+		return nil
+	}
+	if err := n.resolveSingularExample(&param.Example, relPath); err != nil {
+		return err
+	}
+	return n.resolveExamplesMap(param.Examples, relPath)
+}
+
+func (n *OpenAPIConverter) resolveSingularExample(ex *interface{}, relPath string) error {
+	if ex == nil || *ex == nil {
+		return nil
+	}
+	ref, ok := extractSingleRef(*ex)
+	if !ok || !isExternalRef(ref) {
+		return nil
+	}
+	filePath := resolveRefPath(relPath, ref)
+	loaded, err := loadExampleRef(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to load singular example ref %s: %w", ref, err)
+	}
+	*ex = loaded.Value
+	return nil
+}
+
+func (n *OpenAPIConverter) resolveExamplesMap(examples map[string]*Example, relPath string) error {
+	if examples == nil {
+		return nil
+	}
+	for name, ex := range examples {
+		if ex == nil || ex.Ref == nil || !isExternalRef(*ex.Ref) {
+			continue
+		}
+		filePath := resolveRefPath(relPath, *ex.Ref)
+
+		if existingRef, exists := n.doc.Components.Register[filePath]; exists {
+			examples[name] = &Example{Ref: utils.StringPtr(existingRef)}
+			continue
+		}
+
+		loaded, err := loadExampleRef(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to load example ref %s: %w", *ex.Ref, err)
+		}
+
+		comp := n.doc.Components.PutRegister("examples", filePath)
+		if n.doc.Components.Examples == nil {
+			n.doc.Components.Examples = map[string]*Example{}
+		}
+		if n.doc.Components.Examples[comp.Name] == nil {
+			n.doc.Components.Examples[comp.Name] = loaded
+		}
+		examples[name] = &Example{Ref: utils.StringPtr(comp.Identifier)}
+	}
+	return nil
+}
+
+func loadExampleRef(filePath string) (*Example, error) {
+	rawPath, fragment := splitRefPath(filePath)
+
+	content, err := os.ReadFile(rawPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", rawPath, err)
+	}
+
+	var root any
+	if err = yaml.Unmarshal(content, &root); err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %w", rawPath, err)
+	}
+
+	if fragment != "" {
+		root, err = resolveJSONPointer(root, fragment)
+		if err != nil {
+			return nil, fmt.Errorf("failed to navigate fragment %q in %s: %w", fragment, rawPath, err)
+		}
+	}
+
+	if isExampleObjectShape(root) {
+		bytes, err := yaml.Marshal(root)
+		if err != nil {
+			return nil, fmt.Errorf("failed to re-encode example %s: %w", rawPath, err)
+		}
+		var ex Example
+		if err = yaml.Unmarshal(bytes, &ex); err != nil {
+			return nil, fmt.Errorf("failed to decode example %s: %w", rawPath, err)
+		}
+		return &ex, nil
+	}
+
+	return &Example{Value: normalizeYAML(root)}, nil
+}
+
+func isExampleObjectShape(v any) bool {
+	keys := map[string]struct{}{
+		"$ref": {}, "summary": {}, "description": {}, "value": {}, "externalValue": {},
+	}
+	switch m := v.(type) {
+	case map[string]any:
+		if len(m) == 0 {
+			return false
+		}
+		for k := range m {
+			if _, ok := keys[k]; !ok {
+				return false
+			}
+		}
+		return true
+	case map[any]any:
+		if len(m) == 0 {
+			return false
+		}
+		for k := range m {
+			s, ok := k.(string)
+			if !ok {
+				return false
+			}
+			if _, ok := keys[s]; !ok {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func normalizeYAML(v any) any {
+	switch m := v.(type) {
+	case map[any]any:
+		out := make(map[string]any, len(m))
+		for k, val := range m {
+			s, ok := k.(string)
+			if !ok {
+				s = fmt.Sprintf("%v", k)
+			}
+			out[s] = normalizeYAML(val)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(m))
+		for k, val := range m {
+			out[k] = normalizeYAML(val)
+		}
+		return out
+	case []any:
+		out := make([]any, len(m))
+		for i, val := range m {
+			out[i] = normalizeYAML(val)
+		}
+		return out
+	}
+	return v
 }

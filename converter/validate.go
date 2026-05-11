@@ -145,6 +145,9 @@ func (n *OpenAPIConverter) knownComponentKeys() map[string]struct{} {
 	for name := range n.doc.Components.Responses {
 		out["#/components/responses/"+name] = struct{}{}
 	}
+	for name := range n.doc.Components.Examples {
+		out["#/components/examples/"+name] = struct{}{}
+	}
 	return out
 }
 

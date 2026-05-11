@@ -57,7 +57,16 @@ type Components struct {
 	Parameters      map[string]*Parameter      `yaml:"parameters,omitempty"`
 	Schemas         map[string]*Schema         `yaml:"schemas,omitempty"`
 	Responses       map[string]*Response       `yaml:"responses,omitempty"`
+	Examples        map[string]*Example        `yaml:"examples,omitempty"`
 	Register        ReferenceRegister          `yaml:"-"`
+}
+
+type Example struct {
+	Ref           *string     `yaml:"$ref,omitempty"`
+	Summary       string      `yaml:"summary,omitempty"`
+	Description   string      `yaml:"description,omitempty"`
+	Value         interface{} `yaml:"value,omitempty"`
+	ExternalValue string      `yaml:"externalValue,omitempty"`
 }
 
 type SecurityScheme struct {
@@ -71,13 +80,14 @@ type SecurityScheme struct {
 }
 
 type Parameter struct {
-	Ref         *string     `yaml:"$ref,omitempty"`
-	Name        string      `yaml:"name,omitempty"`
-	In          string      `yaml:"in,omitempty"`
-	Required    bool        `yaml:"required,omitempty"`
-	Schema      *Schema     `yaml:"schema,omitempty"`
-	Description string      `yaml:"description,omitempty"`
-	Example     interface{} `yaml:"example,omitempty"`
+	Ref         *string             `yaml:"$ref,omitempty"`
+	Name        string              `yaml:"name,omitempty"`
+	In          string              `yaml:"in,omitempty"`
+	Required    bool                `yaml:"required,omitempty"`
+	Schema      *Schema             `yaml:"schema,omitempty"`
+	Description string              `yaml:"description,omitempty"`
+	Example     interface{}         `yaml:"example,omitempty"`
+	Examples    map[string]*Example `yaml:"examples,omitempty"`
 }
 
 type PathItem struct {
@@ -132,6 +142,7 @@ type Response struct {
 }
 
 type ResponseContent struct {
-	Schema  *Schema     `yaml:"schema,omitempty"`
-	Example interface{} `yaml:"example,omitempty"`
+	Schema   *Schema             `yaml:"schema,omitempty"`
+	Example  interface{}         `yaml:"example,omitempty"`
+	Examples map[string]*Example `yaml:"examples,omitempty"`
 }
