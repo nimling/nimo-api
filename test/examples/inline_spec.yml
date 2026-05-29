@@ -1,0 +1,82 @@
+openapi: 3.1.0
+info:
+  title: Inline Test API
+  version: 1.0.0
+  description: Spec used to validate the inline flags
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+paths:
+  /things:
+    get:
+      summary: List things
+      description: Returns a list of things plus the standard error responses.
+      operationId: listThings
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thing'
+              examples:
+                default:
+                  $ref: '#/components/examples/thingsExample'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      summary: Create a thing
+      description: Creates a thing using the supplied body.
+      operationId: createThing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Thing'
+            examples:
+              default:
+                $ref: '#/components/examples/thingsExample'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thing'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+components:
+  schemas:
+    Thing:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - name
+  examples:
+    thingsExample:
+      summary: Sample thing
+      description: A minimal thing
+      value:
+        id: t_1
+        name: example
+  responses:
+    BadRequest:
+      description: Malformed request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Thing'
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Thing'

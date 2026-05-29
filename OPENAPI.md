@@ -108,6 +108,19 @@ paths:
           $ref: '../common/responses/BadRequest.yml'
 ```
 
+## Inlining Internal References
+
+The converter normally keeps `#/components/...` refs intact in the emitted spec for reusability. Some downstream renderers cannot dereference these on their own and end up showing empty panels for shared examples, responses, or schemas. Use these flags to flatten internal refs at every consumption site and drop the now-orphaned components map.
+
+| Flag | Effect |
+| --- | --- |
+| `--inline-examples` | Inline every `$ref: '#/components/examples/X'` inside `requestBody`, `responses`, and `parameters`; drop `components.examples`. |
+| `--inline-responses` | Inline every `$ref: '#/components/responses/X'` inside operation `responses`; drop `components.responses`. |
+| `--inline-schemas` | Inline every `$ref: '#/components/schemas/X'` inside schemas, parameters, request bodies, and responses; drop `components.schemas`. Self-referential schemas keep the inner `$ref` so circular cycles do not expand forever. |
+| `--flat` | Shortcut for all three above. |
+
+Source YAML stays unchanged; only the emitted `spec.json` differs. Examples reused once produce zero duplication, but inlining shared responses and schemas grows the output proportionally to how often they are referenced.
+
 ## Response Merging
 
 The `--merge-responses-inline` flag enables automatic merging of `allOf` response definitions:

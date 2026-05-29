@@ -19,6 +19,10 @@ var (
 	commonPrefix         string
 	writeIntroduction    bool
 	mergeResponsesInline bool
+	inlineExamples       bool
+	inlineResponses      bool
+	inlineSchemas        bool
+	flat                 bool
 )
 
 func NewConvertCommand() *cobra.Command {
@@ -54,11 +58,25 @@ Examples:
 	cmd.Flags().StringVar(&commonPrefix, "common-prefix", "", "URL path prefix for VitePress documentation links")
 	cmd.Flags().BoolVar(&writeIntroduction, "write-introduction", false, "Generate introduction page for API documentation")
 	cmd.Flags().BoolVar(&mergeResponsesInline, "merge-responses-inline", false, "Merge allOf response definitions into single inline objects")
-	
+	cmd.Flags().BoolVar(&inlineExamples, "inline-examples", false, "Inline #/components/examples/* refs at every consumption site and drop the components.examples map")
+	cmd.Flags().BoolVar(&inlineResponses, "inline-responses", false, "Inline #/components/responses/* refs at every consumption site and drop the components.responses map")
+	cmd.Flags().BoolVar(&inlineSchemas, "inline-schemas", false, "Inline #/components/schemas/* refs at every consumption site and drop the components.schemas map. Circular schemas keep their ref")
+	cmd.Flags().BoolVar(&flat, "flat", false, "Shortcut for --inline-examples --inline-responses --inline-schemas")
+
 	return cmd
 }
 
-func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
+type InlineOptions struct {
+	Examples  bool
+	Responses bool
+	Schemas   bool
+}
+
+func (o InlineOptions) Any() bool {
+	return o.Examples || o.Responses || o.Schemas
+}
+
+func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions) error {
 	if nginxOutput != "" {
 		if err := os.MkdirAll(nginxOutput, 0755); err != nil {
 			return fmt.Errorf("failed to create nginx output directory: %w", err)
@@ -66,7 +84,7 @@ func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs
 	}
 
 	for _, path := range args {
-		if err := processPath(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses); err != nil {
+		if err := processPath(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline); err != nil {
 			return err
 		}
 	}
@@ -75,10 +93,15 @@ func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs
 }
 
 func runConvertCommand(cmd *cobra.Command, args []string) error {
-	return RunConvert(args, nginxOutputDir, outputDir, docsDir, generateDocs, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline)
+	inline := InlineOptions{
+		Examples:  inlineExamples || flat,
+		Responses: inlineResponses || flat,
+		Schemas:   inlineSchemas || flat,
+	}
+	return RunConvert(args, nginxOutputDir, outputDir, docsDir, generateDocs, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline, inline)
 }
 
-func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
+func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions) error {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
@@ -100,7 +123,7 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 					return err
 				}
 				if !info.IsDir() && (strings.HasSuffix(info.Name(), ".yml") || strings.HasSuffix(info.Name(), ".yaml")) {
-					return processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses)
+					return processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline)
 				}
 				return nil
 			})
@@ -108,7 +131,7 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 				return err
 			}
 		} else if strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml") {
-			err = processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses)
+			err = processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline)
 			if err != nil {
 				return err
 			}
@@ -118,20 +141,20 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 	return nil
 }
 
-func processFile(filePath string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool) error {
+func processFile(filePath string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions) error {
 	conv, err := converter.NewOpenApiConverter(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to load OpenAPI specification: %w", err)
 	}
-	
+
 	conv.FilePrefix = filePrefixStr
 	conv.WriteIntroduction = writeIntro
 	conv.CommonPrefix = commonPrefixStr
-	
+
 	if err = conv.ValidateDocument(); err != nil {
 		return fmt.Errorf("validation error: %s", err)
 	}
-	
+
 	if mergeResponses {
 		err = conv.MergeResponsesInline()
 		if err != nil {
@@ -139,7 +162,26 @@ func processFile(filePath string, nginxOutput, specOutput, docsPath string, genD
 		}
 		fmt.Printf("✓ Merged response definitions for %s\n", filePath)
 	}
-	
+
+	if inline.Examples {
+		if err = conv.InlineExamples(); err != nil {
+			return fmt.Errorf("inline examples error: %s", err)
+		}
+		fmt.Printf("✓ Inlined examples for %s\n", filePath)
+	}
+	if inline.Responses {
+		if err = conv.InlineResponses(); err != nil {
+			return fmt.Errorf("inline responses error: %s", err)
+		}
+		fmt.Printf("✓ Inlined responses for %s\n", filePath)
+	}
+	if inline.Schemas {
+		if err = conv.InlineSchemas(); err != nil {
+			return fmt.Errorf("inline schemas error: %s", err)
+		}
+		fmt.Printf("✓ Inlined schemas for %s\n", filePath)
+	}
+
 	if nginxOutput != "" {
 		config, err := conv.WriteNginxConfiguration()
 		if err != nil {
