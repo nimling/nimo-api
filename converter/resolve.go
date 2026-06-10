@@ -396,6 +396,11 @@ func (n *OpenAPIConverter) resolveParameterRefs(params []*Parameter, relPath str
 			if err := n.resolveParameterExamples(param, relPath); err != nil {
 				return nil, fmt.Errorf("failed to resolve parameter examples %s: %w", param.Name, err)
 			}
+			if param.Schema != nil {
+				if err := param.Schema.resolveExternalRefs(n.doc.Components, relPath); err != nil {
+					return nil, fmt.Errorf("failed to resolve parameter schema refs %s: %w", param.Name, err)
+				}
+			}
 			result = append(result, param)
 		}
 	}
