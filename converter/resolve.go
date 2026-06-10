@@ -25,7 +25,7 @@ func (n *OpenAPIConverter) ResolveExternalRefs() error {
 	}
 
 	// Iteratively resolve references until no external refs remain
-	maxIterations := 10 // Prevent infinite loops
+	maxIterations := 20 // Prevent infinite loops
 	for i := 0; i < maxIterations; i++ {
 		externalRefsRemain := false
 

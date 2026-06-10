@@ -155,6 +155,10 @@ func processFile(filePath string, nginxOutput, specOutput, docsPath string, genD
 		return fmt.Errorf("validation error: %s", err)
 	}
 
+	if err = conv.NormalizeRefs(); err != nil {
+		return fmt.Errorf("normalize refs error: %s", err)
+	}
+
 	if mergeResponses {
 		err = conv.MergeResponsesInline()
 		if err != nil {

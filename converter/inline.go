@@ -2,6 +2,7 @@ package converter
 
 import (
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -10,6 +11,81 @@ const (
 	responsesRefPrefix = "#/components/responses/"
 	schemasRefPrefix   = "#/components/schemas/"
 )
+
+// NormalizeRefs walks every schema ref in the spec and rewrites file-style
+// references (e.g. "./components/ReturnError.yml", "ReturnError.yaml",
+// "shared/ReturnError.json") to the standard internal pointer form
+// "#/components/schemas/<Name>" when the basename (extension stripped) matches
+// a schema in components.schemas. This keeps shared shapes deduplicated in
+// components.schemas and lets every consumer follow the standard internal ref.
+func (n *OpenAPIConverter) NormalizeRefs() error {
+	if n.doc == nil {
+		return nil
+	}
+	if n.doc.Components == nil || n.doc.Components.Schemas == nil {
+		return nil
+	}
+
+	names := make(map[string]bool, len(n.doc.Components.Schemas))
+	for name := range n.doc.Components.Schemas {
+		names[name] = true
+	}
+
+	rewrite := func(schema *Schema) bool {
+		if schema == nil || schema.Ref == nil {
+			return false
+		}
+		ref := *schema.Ref
+		if strings.HasPrefix(ref, "#/") {
+			return false
+		}
+		base := path.Base(ref)
+		ext := path.Ext(base)
+		lower := strings.ToLower(ext)
+		if lower != ".yml" && lower != ".yaml" && lower != ".json" {
+			return false
+		}
+		name := strings.TrimSuffix(base, ext)
+		if !names[name] {
+			return false
+		}
+		next := schemasRefPrefix + name
+		schema.Ref = &next
+		return true
+	}
+
+	var walk func(*Schema)
+	walk = func(s *Schema) {
+		if s == nil {
+			return
+		}
+		rewrite(s)
+		for _, prop := range s.Properties {
+			walk(prop)
+		}
+		if s.Items != nil {
+			walk(s.Items)
+		}
+		for _, sub := range s.AllOf {
+			walk(sub)
+		}
+		for _, sub := range s.OneOf {
+			walk(sub)
+		}
+		for _, sub := range s.AnyOf {
+			walk(sub)
+		}
+	}
+
+	for _, schema := range n.doc.Components.Schemas {
+		walk(schema)
+	}
+
+	return n.walkOperationSchemas(func(schema **Schema) error {
+		walk(*schema)
+		return nil
+	})
+}
 
 func (n *OpenAPIConverter) InlineExamples() error {
 	if n.doc == nil || n.doc.Paths == nil {
