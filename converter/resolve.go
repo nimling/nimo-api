@@ -9,6 +9,9 @@ import (
 	"strings"
 )
 
+// Verbose toggles diagnostic logging during ref resolution and inlining.
+var Verbose bool
+
 func (n *OpenAPIConverter) ResolveExternalRefs() error {
 	// Initialize component register if not already done
 	if n.doc.Components == nil {
@@ -45,6 +48,21 @@ func (n *OpenAPIConverter) ResolveExternalRefs() error {
 
 		// Check if any external references remain
 		externalRefsRemain = n.hasExternalRefs()
+
+		if Verbose {
+			refs := n.collectExternalRefs()
+			fmt.Fprintf(os.Stderr, "[nimo] iteration %d: %d external refs remain\n", i+1, len(refs))
+			sample := refs
+			if len(sample) > 10 {
+				sample = sample[:10]
+			}
+			for _, r := range sample {
+				fmt.Fprintf(os.Stderr, "[nimo]   - %s\n", r)
+			}
+			if len(refs) > len(sample) {
+				fmt.Fprintf(os.Stderr, "[nimo]   ... and %d more\n", len(refs)-len(sample))
+			}
+		}
 
 		if !externalRefsRemain {
 			// No more external refs, we're done
@@ -628,6 +646,124 @@ func (n *OpenAPIConverter) hasExternalRefs() bool {
 	}
 
 	return false
+}
+
+// collectExternalRefs walks the doc and returns every external ref string that
+// is still present. Used by the verbose ResolveExternalRefs loop to surface
+// which refs are not being resolved across iterations.
+func (n *OpenAPIConverter) collectExternalRefs() []string {
+	var out []string
+	if n.doc.Components != nil {
+		collectExternalRefsInComponents(n.doc.Components, &out)
+	}
+	if n.doc.Paths != nil {
+		for key, pathItem := range n.doc.Paths {
+			collectExternalRefsInPathItem(pathItem, key, &out)
+		}
+	}
+	return out
+}
+
+func collectExternalRefsInComponents(components *Components, out *[]string) {
+	if components == nil {
+		return
+	}
+	if components.Schemas != nil {
+		for name, schema := range components.Schemas {
+			collectExternalRefsInSchema(schema, "components.schemas."+name, out)
+		}
+	}
+	if components.Parameters != nil {
+		for name, param := range components.Parameters {
+			if param.Ref != nil && isExternalRef(*param.Ref) {
+				*out = append(*out, "components.parameters."+name+" -> "+*param.Ref)
+			}
+			collectExternalRefsInSchema(param.Schema, "components.parameters."+name+".schema", out)
+		}
+	}
+	if components.SecuritySchemes != nil {
+		for name, scheme := range components.SecuritySchemes {
+			if scheme.Ref != nil && isExternalRef(*scheme.Ref) {
+				*out = append(*out, "components.securitySchemes."+name+" -> "+*scheme.Ref)
+			}
+		}
+	}
+	for name, ex := range components.Examples {
+		if ex != nil && ex.Ref != nil && isExternalRef(*ex.Ref) {
+			*out = append(*out, "components.examples."+name+" -> "+*ex.Ref)
+		}
+	}
+}
+
+func collectExternalRefsInSchema(schema *Schema, path string, out *[]string) {
+	if schema == nil {
+		return
+	}
+	if schema.Ref != nil && isExternalRef(*schema.Ref) {
+		*out = append(*out, path+" -> "+*schema.Ref)
+	}
+	for name, prop := range schema.Properties {
+		collectExternalRefsInSchema(prop, path+".properties."+name, out)
+	}
+	if schema.Items != nil {
+		collectExternalRefsInSchema(schema.Items, path+".items", out)
+	}
+	for i, s := range schema.AllOf {
+		collectExternalRefsInSchema(s, fmt.Sprintf("%s.allOf[%d]", path, i), out)
+	}
+}
+
+func collectExternalRefsInPathItem(pathItem *PathItem, key string, out *[]string) {
+	if pathItem == nil {
+		return
+	}
+	for i, param := range pathItem.Parameters {
+		base := fmt.Sprintf("paths[%s].parameters[%d]", key, i)
+		if param.Ref != nil && isExternalRef(*param.Ref) {
+			*out = append(*out, base+" -> "+*param.Ref)
+		}
+		collectExternalRefsInSchema(param.Schema, base+".schema", out)
+	}
+	for opName, operation := range pathItem.Operations() {
+		if operation == nil {
+			continue
+		}
+		base := fmt.Sprintf("paths[%s].%s", key, opName)
+		if operation.Ref != nil && isExternalRef(*operation.Ref) {
+			*out = append(*out, base+" -> "+*operation.Ref)
+		}
+		for i, param := range operation.Parameters {
+			pbase := fmt.Sprintf("%s.parameters[%d]", base, i)
+			if param.Ref != nil && isExternalRef(*param.Ref) {
+				*out = append(*out, pbase+" -> "+*param.Ref)
+			}
+			collectExternalRefsInSchema(param.Schema, pbase+".schema", out)
+		}
+		if operation.RequestBody != nil {
+			rb := operation.RequestBody
+			if rb.Ref != nil && isExternalRef(*rb.Ref) {
+				*out = append(*out, base+".requestBody -> "+*rb.Ref)
+			}
+			for mt, content := range rb.Content {
+				if content == nil {
+					continue
+				}
+				collectExternalRefsInSchema(content.Schema, base+".requestBody.content["+mt+"].schema", out)
+			}
+		}
+		for code, response := range operation.Responses {
+			rbase := base + ".responses[" + code + "]"
+			if response.Ref != nil && isExternalRef(*response.Ref) {
+				*out = append(*out, rbase+" -> "+*response.Ref)
+			}
+			for mt, content := range response.Content {
+				if content == nil {
+					continue
+				}
+				collectExternalRefsInSchema(content.Schema, rbase+".content["+mt+"].schema", out)
+			}
+		}
+	}
 }
 
 // Helper functions to check for external refs

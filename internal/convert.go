@@ -23,6 +23,7 @@ var (
 	inlineResponses      bool
 	inlineSchemas        bool
 	flat                 bool
+	verbose              bool
 )
 
 func NewConvertCommand() *cobra.Command {
@@ -62,6 +63,7 @@ Examples:
 	cmd.Flags().BoolVar(&inlineResponses, "inline-responses", false, "Inline #/components/responses/* refs at every consumption site and drop the components.responses map")
 	cmd.Flags().BoolVar(&inlineSchemas, "inline-schemas", false, "Inline #/components/schemas/* refs at every consumption site and drop the components.schemas map. Circular schemas keep their ref")
 	cmd.Flags().BoolVar(&flat, "flat", false, "Shortcut for --inline-examples --inline-responses --inline-schemas")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Print per-iteration diagnostic logs during ref resolution and inlining")
 
 	return cmd
 }
@@ -93,6 +95,7 @@ func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs
 }
 
 func runConvertCommand(cmd *cobra.Command, args []string) error {
+	converter.Verbose = verbose
 	inline := InlineOptions{
 		Examples:  inlineExamples || flat,
 		Responses: inlineResponses || flat,
