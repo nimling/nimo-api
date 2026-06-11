@@ -12,6 +12,17 @@ import (
 // Verbose toggles diagnostic logging during ref resolution and inlining.
 var Verbose bool
 
+// VerboseWrite toggles a bullet line per file write performed by the converter.
+var VerboseWrite bool
+
+// LogWrite prints a bullet line for a file write when VerboseWrite is on.
+func LogWrite(path string, bytes int) {
+	if !VerboseWrite {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "  - wrote %s (%d bytes)\n", path, bytes)
+}
+
 func (n *OpenAPIConverter) ResolveExternalRefs() error {
 	// Initialize component register if not already done
 	if n.doc.Components == nil {

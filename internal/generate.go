@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/nimling/nimo-api/converter"
 	"github.com/nimling/nimo-api/pkg/ai"
 	"github.com/nimling/nimo-api/pkg/parser"
 	"github.com/spf13/cobra"
@@ -202,6 +203,7 @@ func writeSpec(spec *openapi3.T, outputPath, format string) error {
 	if err := os.WriteFile(outputPath, data, 0644); err != nil {
 		return fmt.Errorf("error writing spec file: %w", err)
 	}
+	converter.LogWrite(outputPath, len(data))
 
 	return nil
 }

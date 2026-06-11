@@ -66,18 +66,22 @@ func (n *OpenAPIConverter) WriteMarkdown(specPath string, outputPath string) err
 		return fmt.Errorf("failed to execute markdown template: %w", err)
 	}
 
-	if err = os.WriteFile(path.Join(outputPath, "[tag].md"), []byte(fileContent), 0644); err != nil {
+	tagPath := path.Join(outputPath, "[tag].md")
+	if err = os.WriteFile(tagPath, []byte(fileContent), 0644); err != nil {
 		return fmt.Errorf("failed to write [tag].md]: %w", err)
 	}
+	LogWrite(tagPath, len(fileContent))
 
 	fileContent, err = utils.ExecuteTemplate("paths", oaPathsTemplate, data)
 	if err != nil {
 		return fmt.Errorf("failed to execute markdown template: %w", err)
 	}
 
-	if err = os.WriteFile(path.Join(outputPath, "[tag].paths.js"), []byte(fileContent), 0644); err != nil {
+	pathsPath := path.Join(outputPath, "[tag].paths.js")
+	if err = os.WriteFile(pathsPath, []byte(fileContent), 0644); err != nil {
 		return fmt.Errorf("failed to write index.md: %w", err)
 	}
+	LogWrite(pathsPath, len(fileContent))
 
 	if n.WriteIntroduction {
 		fileContent, err = utils.ExecuteTemplate("introduction", oaIntroductionTemplate, data)
@@ -85,9 +89,11 @@ func (n *OpenAPIConverter) WriteMarkdown(specPath string, outputPath string) err
 			return fmt.Errorf("failed to execute markdown template: %w", err)
 		}
 
-		if err = os.WriteFile(path.Join(outputPath, fmt.Sprintf("%sintroduction.md", n.FilePrefix)), []byte(fileContent), 0644); err != nil {
+		introPath := path.Join(outputPath, fmt.Sprintf("%sintroduction.md", n.FilePrefix))
+		if err = os.WriteFile(introPath, []byte(fileContent), 0644); err != nil {
 			return fmt.Errorf("failed to write introduction.md: %w", err)
 		}
+		LogWrite(introPath, len(fileContent))
 	}
 
 	return nil
@@ -119,6 +125,7 @@ func (n *OpenAPIConverter) writeOpenAPISpec(outputPath string) error {
 	if err := os.WriteFile(outputPath, jsonData, 0644); err != nil {
 		return fmt.Errorf("failed to write JSON file: %w", err)
 	}
+	LogWrite(outputPath, len(jsonData))
 
 	return nil
 }
@@ -232,6 +239,7 @@ func (n *OpenAPIConverter) WriteVitePressFeatures(outputPath string) error {
 	if err := os.WriteFile(outputPath, []byte(newContent), 0644); err != nil {
 		return fmt.Errorf("failed to write updated index.md: %w", err)
 	}
+	LogWrite(outputPath, len(newContent))
 
 	return nil
 }
