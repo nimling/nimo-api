@@ -143,11 +143,16 @@ func (n *OpenAPIConverter) InlineResponses() error {
 	return nil
 }
 
+const inlineMaxDepth = 256
+
 type inlineCtx struct {
 	visiting      map[string]bool
 	onPath        map[*Schema]string
+	pathPointers  map[*Schema]bool
+	nameStack     []string
 	nameByPointer map[*Schema]string
 	cycleSeen     map[string]bool
+	depth         int
 }
 
 func (n *OpenAPIConverter) InlineSchemas() error {
@@ -161,6 +166,7 @@ func (n *OpenAPIConverter) InlineSchemas() error {
 	ctx := &inlineCtx{
 		visiting:      map[string]bool{},
 		onPath:        map[*Schema]string{},
+		pathPointers:  map[*Schema]bool{},
 		nameByPointer: map[*Schema]string{},
 		cycleSeen:     map[string]bool{},
 	}
@@ -350,10 +356,25 @@ func (n *OpenAPIConverter) inlineSchema(schema *Schema, ctx *inlineCtx) (*Schema
 		return nil, nil
 	}
 
+	if ctx.depth >= inlineMaxDepth {
+		return nil, fmt.Errorf("schema inlining exceeded max depth %d at %s", inlineMaxDepth, describeSchemaPath(ctx))
+	}
+	ctx.depth++
+	defer func() { ctx.depth-- }()
+
 	if name, ok := ctx.onPath[schema]; ok {
 		ctx.cycleSeen[name] = true
 		ref := schemasRefPrefix + name
 		return &Schema{Ref: &ref}, nil
+	}
+
+	if ctx.pathPointers[schema] {
+		if name := outermostName(ctx); name != "" {
+			ctx.cycleSeen[name] = true
+			ref := schemasRefPrefix + name
+			return &Schema{Ref: &ref}, nil
+		}
+		return &Schema{}, nil
 	}
 
 	if schema.Ref != nil && strings.HasPrefix(*schema.Ref, schemasRefPrefix) {
@@ -368,7 +389,9 @@ func (n *OpenAPIConverter) inlineSchema(schema *Schema, ctx *inlineCtx) (*Schema
 		}
 		ctx.visiting[name] = true
 		ctx.onPath[target] = name
+		ctx.nameStack = append(ctx.nameStack, name)
 		expanded, err := n.inlineSchema(cloneSchema(target), ctx)
+		ctx.nameStack = ctx.nameStack[:len(ctx.nameStack)-1]
 		delete(ctx.visiting, name)
 		delete(ctx.onPath, target)
 		if err != nil {
@@ -377,11 +400,18 @@ func (n *OpenAPIConverter) inlineSchema(schema *Schema, ctx *inlineCtx) (*Schema
 		return expanded, nil
 	}
 
+	ctx.pathPointers[schema] = true
+	defer delete(ctx.pathPointers, schema)
+
 	if name, ok := ctx.nameByPointer[schema]; ok && !ctx.visiting[name] {
 		ctx.visiting[name] = true
 		ctx.onPath[schema] = name
-		defer delete(ctx.visiting, name)
-		defer delete(ctx.onPath, schema)
+		ctx.nameStack = append(ctx.nameStack, name)
+		defer func() {
+			ctx.nameStack = ctx.nameStack[:len(ctx.nameStack)-1]
+			delete(ctx.visiting, name)
+			delete(ctx.onPath, schema)
+		}()
 	}
 
 	if schema.Properties != nil {
@@ -410,6 +440,22 @@ func (n *OpenAPIConverter) inlineSchema(schema *Schema, ctx *inlineCtx) (*Schema
 		return nil, err
 	}
 	return schema, nil
+}
+
+func outermostName(ctx *inlineCtx) string {
+	for i := len(ctx.nameStack) - 1; i >= 0; i-- {
+		if ctx.nameStack[i] != "" {
+			return ctx.nameStack[i]
+		}
+	}
+	return ""
+}
+
+func describeSchemaPath(ctx *inlineCtx) string {
+	if len(ctx.nameStack) == 0 {
+		return "<root>"
+	}
+	return strings.Join(ctx.nameStack, " -> ")
 }
 
 func (n *OpenAPIConverter) inlineSchemaList(list []*Schema, ctx *inlineCtx) error {
