@@ -14,9 +14,6 @@ import (
 var splitSlugReplacer = regexp.MustCompile(`[^a-zA-Z0-9]+`)
 
 func (n *OpenAPIConverter) WriteSplitOpenAPISpec(outputDir, dirName, fileName string) error {
-	if dirName == "" {
-		dirName = fmt.Sprintf("%sspec", strings.TrimSuffix(n.FilePrefix, "."))
-	}
 	if fileName == "" {
 		fileName = "spec.json"
 	}

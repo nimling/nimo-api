@@ -70,8 +70,8 @@ Examples:
 	cmd.Flags().BoolVar(&noRefs, "no-refs", false, "After --inline or --inline-* flags, replace every remaining internal $ref with a deep copy of the referenced node so the output has no internal refs left. Cycles keep the deepest $ref. No-op without an --inline-* flag")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Print per-iteration diagnostic logs during ref resolution and inlining")
 	cmd.Flags().BoolVar(&verboseWrite, "verbose-write", false, "Print a bullet line for every file the converter writes to disk")
-	cmd.Flags().StringVar(&splitDir, "spec-dir", "", "Folder name (under the output directory) for the split spec tree. Defaults to <file-prefix>spec")
-	cmd.Flags().StringVar(&splitFile, "spec-file", "", "File name for the top entry of the split spec tree. Defaults to spec.json")
+	cmd.Flags().StringVar(&splitDir, "spec-dir", "", "Optional folder name (under the output directory) that wraps the spec.json and the operations and schemas folders. Default is empty, which writes spec.json and the operations and schemas folders directly under the output directory")
+	cmd.Flags().StringVar(&splitFile, "spec-file", "", "File name for the top entry of the spec output. Defaults to spec.json")
 
 	return cmd
 }
@@ -225,11 +225,6 @@ func processFile(filePath string, nginxOutput, specOutput, docsPath string, genD
 		outputDirForSpec = specOutput
 	} else if len(docsPath) > 0 {
 		outputDirForSpec = docsPath
-	}
-
-	err = conv.WriteOpenAPISpec(outputDirForSpec)
-	if err != nil {
-		return fmt.Errorf("failed to write OpenAPI spec: %w", err)
 	}
 
 	if err = conv.WriteSplitOpenAPISpec(outputDirForSpec, splitDirName, splitFileName); err != nil {
