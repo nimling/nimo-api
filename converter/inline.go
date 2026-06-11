@@ -198,7 +198,84 @@ func (n *OpenAPIConverter) InlineSchemas() error {
 			kept[name] = sch
 		}
 	}
+	for name, sch := range kept {
+		onPath := map[*Schema]bool{sch: true}
+		if err := n.sanitizeSchemaCycles(name, sch, onPath, 0); err != nil {
+			return err
+		}
+	}
 	n.doc.Components.Schemas = kept
+	return nil
+}
+
+func (n *OpenAPIConverter) sanitizeSchemaCycles(rootName string, schema *Schema, onPath map[*Schema]bool, depth int) error {
+	if schema == nil {
+		return nil
+	}
+	if depth >= inlineMaxDepth {
+		return fmt.Errorf("schema cycle sanitization exceeded max depth %d under component %q", inlineMaxDepth, rootName)
+	}
+	ref := schemasRefPrefix + rootName
+	replace := func() *Schema {
+		r := ref
+		return &Schema{Ref: &r}
+	}
+	if schema.Properties != nil {
+		for k, prop := range schema.Properties {
+			if prop == nil {
+				continue
+			}
+			if onPath[prop] {
+				schema.Properties[k] = replace()
+				continue
+			}
+			onPath[prop] = true
+			if err := n.sanitizeSchemaCycles(rootName, prop, onPath, depth+1); err != nil {
+				return err
+			}
+			delete(onPath, prop)
+		}
+	}
+	if schema.Items != nil {
+		if onPath[schema.Items] {
+			schema.Items = replace()
+		} else {
+			onPath[schema.Items] = true
+			if err := n.sanitizeSchemaCycles(rootName, schema.Items, onPath, depth+1); err != nil {
+				return err
+			}
+			delete(onPath, schema.Items)
+		}
+	}
+	if err := n.sanitizeSchemaListCycles(rootName, schema.AllOf, onPath, depth+1); err != nil {
+		return err
+	}
+	if err := n.sanitizeSchemaListCycles(rootName, schema.OneOf, onPath, depth+1); err != nil {
+		return err
+	}
+	if err := n.sanitizeSchemaListCycles(rootName, schema.AnyOf, onPath, depth+1); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *OpenAPIConverter) sanitizeSchemaListCycles(rootName string, list []*Schema, onPath map[*Schema]bool, depth int) error {
+	ref := schemasRefPrefix + rootName
+	for i, sub := range list {
+		if sub == nil {
+			continue
+		}
+		if onPath[sub] {
+			r := ref
+			list[i] = &Schema{Ref: &r}
+			continue
+		}
+		onPath[sub] = true
+		if err := n.sanitizeSchemaCycles(rootName, sub, onPath, depth); err != nil {
+			return err
+		}
+		delete(onPath, sub)
+	}
 	return nil
 }
 
