@@ -143,6 +143,13 @@ func (n *OpenAPIConverter) InlineResponses() error {
 	return nil
 }
 
+type inlineCtx struct {
+	visiting      map[string]bool
+	onPath        map[*Schema]string
+	nameByPointer map[*Schema]string
+	cycleSeen     map[string]bool
+}
+
 func (n *OpenAPIConverter) InlineSchemas() error {
 	if n.doc == nil || n.doc.Paths == nil {
 		return nil
@@ -151,10 +158,20 @@ func (n *OpenAPIConverter) InlineSchemas() error {
 		return nil
 	}
 
-	visiting := map[string]bool{}
+	ctx := &inlineCtx{
+		visiting:      map[string]bool{},
+		onPath:        map[*Schema]string{},
+		nameByPointer: map[*Schema]string{},
+		cycleSeen:     map[string]bool{},
+	}
+	for name, sch := range n.doc.Components.Schemas {
+		if sch != nil {
+			ctx.nameByPointer[sch] = name
+		}
+	}
 
 	walkErr := n.walkOperationSchemas(func(schema **Schema) error {
-		inlined, err := n.inlineSchema(*schema, visiting)
+		inlined, err := n.inlineSchema(*schema, ctx)
 		if err != nil {
 			return err
 		}
@@ -165,7 +182,17 @@ func (n *OpenAPIConverter) InlineSchemas() error {
 		return walkErr
 	}
 
-	n.doc.Components.Schemas = nil
+	if len(ctx.cycleSeen) == 0 {
+		n.doc.Components.Schemas = nil
+		return nil
+	}
+	kept := make(map[string]*Schema, len(ctx.cycleSeen))
+	for name := range ctx.cycleSeen {
+		if sch, ok := n.doc.Components.Schemas[name]; ok {
+			kept[name] = sch
+		}
+	}
+	n.doc.Components.Schemas = kept
 	return nil
 }
 
@@ -318,32 +345,48 @@ func (n *OpenAPIConverter) walkOperationSchemas(fn func(schema **Schema) error) 
 	return nil
 }
 
-func (n *OpenAPIConverter) inlineSchema(schema *Schema, visiting map[string]bool) (*Schema, error) {
+func (n *OpenAPIConverter) inlineSchema(schema *Schema, ctx *inlineCtx) (*Schema, error) {
 	if schema == nil {
 		return nil, nil
 	}
 
+	if name, ok := ctx.onPath[schema]; ok {
+		ctx.cycleSeen[name] = true
+		ref := schemasRefPrefix + name
+		return &Schema{Ref: &ref}, nil
+	}
+
 	if schema.Ref != nil && strings.HasPrefix(*schema.Ref, schemasRefPrefix) {
 		name := strings.TrimPrefix(*schema.Ref, schemasRefPrefix)
-		if visiting[name] {
+		if ctx.visiting[name] {
+			ctx.cycleSeen[name] = true
 			return schema, nil
 		}
 		target := n.doc.Components.Schemas[name]
 		if target == nil {
 			return nil, fmt.Errorf("unresolved internal schema ref %q", *schema.Ref)
 		}
-		visiting[name] = true
-		expanded, err := n.inlineSchema(cloneSchema(target), visiting)
-		delete(visiting, name)
+		ctx.visiting[name] = true
+		ctx.onPath[target] = name
+		expanded, err := n.inlineSchema(cloneSchema(target), ctx)
+		delete(ctx.visiting, name)
+		delete(ctx.onPath, target)
 		if err != nil {
 			return nil, err
 		}
 		return expanded, nil
 	}
 
+	if name, ok := ctx.nameByPointer[schema]; ok && !ctx.visiting[name] {
+		ctx.visiting[name] = true
+		ctx.onPath[schema] = name
+		defer delete(ctx.visiting, name)
+		defer delete(ctx.onPath, schema)
+	}
+
 	if schema.Properties != nil {
 		for name, prop := range schema.Properties {
-			inlined, err := n.inlineSchema(prop, visiting)
+			inlined, err := n.inlineSchema(prop, ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -351,27 +394,27 @@ func (n *OpenAPIConverter) inlineSchema(schema *Schema, visiting map[string]bool
 		}
 	}
 	if schema.Items != nil {
-		inlined, err := n.inlineSchema(schema.Items, visiting)
+		inlined, err := n.inlineSchema(schema.Items, ctx)
 		if err != nil {
 			return nil, err
 		}
 		schema.Items = inlined
 	}
-	if err := n.inlineSchemaList(schema.AllOf, visiting); err != nil {
+	if err := n.inlineSchemaList(schema.AllOf, ctx); err != nil {
 		return nil, err
 	}
-	if err := n.inlineSchemaList(schema.OneOf, visiting); err != nil {
+	if err := n.inlineSchemaList(schema.OneOf, ctx); err != nil {
 		return nil, err
 	}
-	if err := n.inlineSchemaList(schema.AnyOf, visiting); err != nil {
+	if err := n.inlineSchemaList(schema.AnyOf, ctx); err != nil {
 		return nil, err
 	}
 	return schema, nil
 }
 
-func (n *OpenAPIConverter) inlineSchemaList(list []*Schema, visiting map[string]bool) error {
+func (n *OpenAPIConverter) inlineSchemaList(list []*Schema, ctx *inlineCtx) error {
 	for i, item := range list {
-		inlined, err := n.inlineSchema(item, visiting)
+		inlined, err := n.inlineSchema(item, ctx)
 		if err != nil {
 			return err
 		}
