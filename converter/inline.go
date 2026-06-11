@@ -2,6 +2,7 @@ package converter
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"strings"
 )
@@ -227,6 +228,7 @@ func (n *OpenAPIConverter) sanitizeSchemaCycles(rootName string, schema *Schema,
 			}
 			if onPath[prop] {
 				schema.Properties[k] = replace()
+				fmt.Fprintf(os.Stderr, "[nimo] cycle: component %q property %q points back into itself, replacing with $ref %s\n", rootName, k, ref)
 				continue
 			}
 			onPath[prop] = true
@@ -239,6 +241,7 @@ func (n *OpenAPIConverter) sanitizeSchemaCycles(rootName string, schema *Schema,
 	if schema.Items != nil {
 		if onPath[schema.Items] {
 			schema.Items = replace()
+			fmt.Fprintf(os.Stderr, "[nimo] cycle: component %q items points back into itself, replacing with $ref %s\n", rootName, ref)
 		} else {
 			onPath[schema.Items] = true
 			if err := n.sanitizeSchemaCycles(rootName, schema.Items, onPath, depth+1); err != nil {
@@ -268,6 +271,7 @@ func (n *OpenAPIConverter) sanitizeSchemaListCycles(rootName string, list []*Sch
 		if onPath[sub] {
 			r := ref
 			list[i] = &Schema{Ref: &r}
+			fmt.Fprintf(os.Stderr, "[nimo] cycle: component %q sub-schema at index %d points back into itself, replacing with $ref %s\n", rootName, i, ref)
 			continue
 		}
 		onPath[sub] = true
@@ -277,6 +281,10 @@ func (n *OpenAPIConverter) sanitizeSchemaListCycles(rootName string, list []*Sch
 		delete(onPath, sub)
 	}
 	return nil
+}
+
+func reportCycle(ctx *inlineCtx, why string) {
+	fmt.Fprintf(os.Stderr, "[nimo] cycle: %s at path %s, emitting back-ref\n", why, describeSchemaPath(ctx))
 }
 
 func (n *OpenAPIConverter) walkOperationContents(fn func(content *ResponseContent) error) error {
@@ -442,6 +450,7 @@ func (n *OpenAPIConverter) inlineSchema(schema *Schema, ctx *inlineCtx) (*Schema
 	if name, ok := ctx.onPath[schema]; ok {
 		ctx.cycleSeen[name] = true
 		ref := schemasRefPrefix + name
+		reportCycle(ctx, fmt.Sprintf("recursive schema component %q", name))
 		return &Schema{Ref: &ref}, nil
 	}
 
@@ -449,8 +458,10 @@ func (n *OpenAPIConverter) inlineSchema(schema *Schema, ctx *inlineCtx) (*Schema
 		if name := outermostName(ctx); name != "" {
 			ctx.cycleSeen[name] = true
 			ref := schemasRefPrefix + name
+			reportCycle(ctx, fmt.Sprintf("pointer cycle inside component %q", name))
 			return &Schema{Ref: &ref}, nil
 		}
+		reportCycle(ctx, "pointer cycle in operation-local schema with no named component on the stack")
 		return &Schema{}, nil
 	}
 
