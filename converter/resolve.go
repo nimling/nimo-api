@@ -250,6 +250,31 @@ func (r *Schema) resolveExternalRefs(components *Components, relPath string) err
 		}
 	}
 
+	// Handle oneOf array - external refs nested under oneOf must also hoist
+	// into components.schemas so consumers do not see raw file refs.
+	if r.OneOf != nil {
+		for i, schema := range r.OneOf {
+			if schema == nil {
+				continue
+			}
+			if err := schema.resolveExternalRefs(components, relPath); err != nil {
+				return fmt.Errorf("failed to resolve oneOf[%d]: %w", i, err)
+			}
+		}
+	}
+
+	// Handle anyOf array - same treatment as oneOf.
+	if r.AnyOf != nil {
+		for i, schema := range r.AnyOf {
+			if schema == nil {
+				continue
+			}
+			if err := schema.resolveExternalRefs(components, relPath); err != nil {
+				return fmt.Errorf("failed to resolve anyOf[%d]: %w", i, err)
+			}
+		}
+	}
+
 	// Process properties - use the same context path
 	if r.Properties != nil {
 		for propName, prop := range r.Properties {
@@ -727,6 +752,12 @@ func collectExternalRefsInSchema(schema *Schema, path string, out *[]string) {
 	for i, s := range schema.AllOf {
 		collectExternalRefsInSchema(s, fmt.Sprintf("%s.allOf[%d]", path, i), out)
 	}
+	for i, s := range schema.OneOf {
+		collectExternalRefsInSchema(s, fmt.Sprintf("%s.oneOf[%d]", path, i), out)
+	}
+	for i, s := range schema.AnyOf {
+		collectExternalRefsInSchema(s, fmt.Sprintf("%s.anyOf[%d]", path, i), out)
+	}
 }
 
 func collectExternalRefsInPathItem(pathItem *PathItem, key string, out *[]string) {
@@ -858,6 +889,20 @@ func hasExternalRefsInSchema(schema *Schema) bool {
 	// Check allOf, oneOf, anyOf schemas
 	if schema.AllOf != nil {
 		for _, s := range schema.AllOf {
+			if hasExternalRefsInSchema(s) {
+				return true
+			}
+		}
+	}
+	if schema.OneOf != nil {
+		for _, s := range schema.OneOf {
+			if hasExternalRefsInSchema(s) {
+				return true
+			}
+		}
+	}
+	if schema.AnyOf != nil {
+		for _, s := range schema.AnyOf {
 			if hasExternalRefsInSchema(s) {
 				return true
 			}
