@@ -147,12 +147,9 @@ func (n *OpenAPIConverter) InlineResponses() error {
 const inlineMaxDepth = 256
 
 type inlineCtx struct {
-	visiting      map[string]bool
-	onPath        map[*Schema]string
-	pathPointers  map[*Schema]bool
-	nameStack     []string
 	nameByPointer map[*Schema]string
-	cycleSeen     map[string]bool
+	ancestors     []*Schema
+	nameStack     []string
 	depth         int
 }
 
@@ -165,11 +162,7 @@ func (n *OpenAPIConverter) InlineSchemas() error {
 	}
 
 	ctx := &inlineCtx{
-		visiting:      map[string]bool{},
-		onPath:        map[*Schema]string{},
-		pathPointers:  map[*Schema]bool{},
 		nameByPointer: map[*Schema]string{},
-		cycleSeen:     map[string]bool{},
 	}
 	for name, sch := range n.doc.Components.Schemas {
 		if sch != nil {
@@ -177,114 +170,137 @@ func (n *OpenAPIConverter) InlineSchemas() error {
 		}
 	}
 
-	walkErr := n.walkOperationSchemas(func(schema **Schema) error {
-		inlined, err := n.inlineSchema(*schema, ctx)
+	walkErr := n.walkOperationSchemas(func(schemaPtr **Schema) error {
+		ctx.ancestors = ctx.ancestors[:0]
+		ctx.nameStack = ctx.nameStack[:0]
+		ctx.depth = 0
+		rewritten, err := n.dedupeEntry(*schemaPtr, ctx)
 		if err != nil {
 			return err
 		}
-		*schema = inlined
+		*schemaPtr = rewritten
 		return nil
 	})
 	if walkErr != nil {
 		return walkErr
 	}
 
-	if len(ctx.cycleSeen) == 0 {
-		n.doc.Components.Schemas = nil
-		return nil
-	}
-	kept := make(map[string]*Schema, len(ctx.cycleSeen))
-	for name := range ctx.cycleSeen {
-		if sch, ok := n.doc.Components.Schemas[name]; ok {
-			kept[name] = sch
+	for name, sch := range n.doc.Components.Schemas {
+		if sch == nil {
+			continue
 		}
-	}
-	for name, sch := range kept {
-		onPath := map[*Schema]bool{sch: true}
-		if err := n.sanitizeSchemaCycles(name, sch, onPath, 0); err != nil {
+		ctx.ancestors = append(ctx.ancestors[:0], sch)
+		ctx.nameStack = append(ctx.nameStack[:0], name)
+		ctx.depth = 0
+		if err := n.dedupeSchema(sch, ctx); err != nil {
 			return err
 		}
 	}
-	n.doc.Components.Schemas = kept
 	return nil
 }
 
-func (n *OpenAPIConverter) sanitizeSchemaCycles(rootName string, schema *Schema, onPath map[*Schema]bool, depth int) error {
+func (n *OpenAPIConverter) dedupeEntry(schema *Schema, ctx *inlineCtx) (*Schema, error) {
+	if schema == nil {
+		return nil, nil
+	}
+	if name, ok := ctx.nameByPointer[schema]; ok {
+		r := schemasRefPrefix + name
+		return &Schema{Ref: &r}, nil
+	}
+	if err := n.dedupeSchema(schema, ctx); err != nil {
+		return nil, err
+	}
+	return schema, nil
+}
+
+func (n *OpenAPIConverter) dedupeSchema(schema *Schema, ctx *inlineCtx) error {
 	if schema == nil {
 		return nil
 	}
-	if depth >= inlineMaxDepth {
-		return fmt.Errorf("schema cycle sanitization exceeded max depth %d under component %q", inlineMaxDepth, rootName)
+	if ctx.depth >= inlineMaxDepth {
+		return fmt.Errorf("schema dedupe exceeded max depth %d at %s", inlineMaxDepth, describeSchemaPath(ctx))
 	}
-	ref := schemasRefPrefix + rootName
-	replace := func() *Schema {
-		r := ref
-		return &Schema{Ref: &r}
+	ctx.depth++
+	defer func() { ctx.depth-- }()
+
+	ctx.ancestors = append(ctx.ancestors, schema)
+	name, isComponent := ctx.nameByPointer[schema]
+	if isComponent {
+		ctx.nameStack = append(ctx.nameStack, name)
 	}
+	defer func() {
+		ctx.ancestors = ctx.ancestors[:len(ctx.ancestors)-1]
+		if isComponent {
+			ctx.nameStack = ctx.nameStack[:len(ctx.nameStack)-1]
+		}
+	}()
+
 	if schema.Properties != nil {
 		for k, prop := range schema.Properties {
-			if prop == nil {
-				continue
-			}
-			if onPath[prop] {
-				schema.Properties[k] = replace()
-				fmt.Fprintf(os.Stderr, "[nimo] cycle: component %q property %q points back into itself, replacing with $ref %s\n", rootName, k, ref)
-				continue
-			}
-			onPath[prop] = true
-			if err := n.sanitizeSchemaCycles(rootName, prop, onPath, depth+1); err != nil {
+			replaced, err := n.dedupeChild(prop, ctx)
+			if err != nil {
 				return err
 			}
-			delete(onPath, prop)
+			schema.Properties[k] = replaced
 		}
 	}
 	if schema.Items != nil {
-		if onPath[schema.Items] {
-			schema.Items = replace()
-			fmt.Fprintf(os.Stderr, "[nimo] cycle: component %q items points back into itself, replacing with $ref %s\n", rootName, ref)
-		} else {
-			onPath[schema.Items] = true
-			if err := n.sanitizeSchemaCycles(rootName, schema.Items, onPath, depth+1); err != nil {
-				return err
-			}
-			delete(onPath, schema.Items)
-		}
-	}
-	if err := n.sanitizeSchemaListCycles(rootName, schema.AllOf, onPath, depth+1); err != nil {
-		return err
-	}
-	if err := n.sanitizeSchemaListCycles(rootName, schema.OneOf, onPath, depth+1); err != nil {
-		return err
-	}
-	if err := n.sanitizeSchemaListCycles(rootName, schema.AnyOf, onPath, depth+1); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (n *OpenAPIConverter) sanitizeSchemaListCycles(rootName string, list []*Schema, onPath map[*Schema]bool, depth int) error {
-	ref := schemasRefPrefix + rootName
-	for i, sub := range list {
-		if sub == nil {
-			continue
-		}
-		if onPath[sub] {
-			r := ref
-			list[i] = &Schema{Ref: &r}
-			fmt.Fprintf(os.Stderr, "[nimo] cycle: component %q sub-schema at index %d points back into itself, replacing with $ref %s\n", rootName, i, ref)
-			continue
-		}
-		onPath[sub] = true
-		if err := n.sanitizeSchemaCycles(rootName, sub, onPath, depth); err != nil {
+		replaced, err := n.dedupeChild(schema.Items, ctx)
+		if err != nil {
 			return err
 		}
-		delete(onPath, sub)
+		schema.Items = replaced
+	}
+	for i, sub := range schema.AllOf {
+		replaced, err := n.dedupeChild(sub, ctx)
+		if err != nil {
+			return err
+		}
+		schema.AllOf[i] = replaced
+	}
+	for i, sub := range schema.OneOf {
+		replaced, err := n.dedupeChild(sub, ctx)
+		if err != nil {
+			return err
+		}
+		schema.OneOf[i] = replaced
+	}
+	for i, sub := range schema.AnyOf {
+		replaced, err := n.dedupeChild(sub, ctx)
+		if err != nil {
+			return err
+		}
+		schema.AnyOf[i] = replaced
 	}
 	return nil
 }
 
-func reportCycle(ctx *inlineCtx, why string) {
-	fmt.Fprintf(os.Stderr, "[nimo] cycle: %s at path %s, emitting back-ref\n", why, describeSchemaPath(ctx))
+func (n *OpenAPIConverter) dedupeChild(child *Schema, ctx *inlineCtx) (*Schema, error) {
+	if child == nil {
+		return nil, nil
+	}
+	if child.Ref != nil && strings.HasPrefix(*child.Ref, schemasRefPrefix) {
+		return child, nil
+	}
+	if name, ok := ctx.nameByPointer[child]; ok {
+		r := schemasRefPrefix + name
+		return &Schema{Ref: &r}, nil
+	}
+	for _, anc := range ctx.ancestors {
+		if anc == child {
+			if name := outermostName(ctx); name != "" {
+				fmt.Fprintf(os.Stderr, "[nimo] cycle: anonymous nesting at %s, replacing with $ref %s\n", describeSchemaPath(ctx), schemasRefPrefix+name)
+				r := schemasRefPrefix + name
+				return &Schema{Ref: &r}, nil
+			}
+			fmt.Fprintf(os.Stderr, "[nimo] cycle: anonymous nesting at %s with no named ancestor, replacing with empty schema\n", describeSchemaPath(ctx))
+			return &Schema{}, nil
+		}
+	}
+	if err := n.dedupeSchema(child, ctx); err != nil {
+		return nil, err
+	}
+	return child, nil
 }
 
 func (n *OpenAPIConverter) walkOperationContents(fn func(content *ResponseContent) error) error {
@@ -436,100 +452,6 @@ func (n *OpenAPIConverter) walkOperationSchemas(fn func(schema **Schema) error) 
 	return nil
 }
 
-func (n *OpenAPIConverter) inlineSchema(schema *Schema, ctx *inlineCtx) (*Schema, error) {
-	if schema == nil {
-		return nil, nil
-	}
-
-	if ctx.depth >= inlineMaxDepth {
-		return nil, fmt.Errorf("schema inlining exceeded max depth %d at %s", inlineMaxDepth, describeSchemaPath(ctx))
-	}
-	ctx.depth++
-	defer func() { ctx.depth-- }()
-
-	if name, ok := ctx.onPath[schema]; ok {
-		ctx.cycleSeen[name] = true
-		ref := schemasRefPrefix + name
-		reportCycle(ctx, fmt.Sprintf("recursive schema component %q", name))
-		return &Schema{Ref: &ref}, nil
-	}
-
-	if ctx.pathPointers[schema] {
-		if name := outermostName(ctx); name != "" {
-			ctx.cycleSeen[name] = true
-			ref := schemasRefPrefix + name
-			reportCycle(ctx, fmt.Sprintf("pointer cycle inside component %q", name))
-			return &Schema{Ref: &ref}, nil
-		}
-		reportCycle(ctx, "pointer cycle in operation-local schema with no named component on the stack")
-		return &Schema{}, nil
-	}
-
-	if schema.Ref != nil && strings.HasPrefix(*schema.Ref, schemasRefPrefix) {
-		name := strings.TrimPrefix(*schema.Ref, schemasRefPrefix)
-		if ctx.visiting[name] {
-			ctx.cycleSeen[name] = true
-			return schema, nil
-		}
-		target := n.doc.Components.Schemas[name]
-		if target == nil {
-			return nil, fmt.Errorf("unresolved internal schema ref %q", *schema.Ref)
-		}
-		ctx.visiting[name] = true
-		ctx.onPath[target] = name
-		ctx.nameStack = append(ctx.nameStack, name)
-		expanded, err := n.inlineSchema(cloneSchema(target), ctx)
-		ctx.nameStack = ctx.nameStack[:len(ctx.nameStack)-1]
-		delete(ctx.visiting, name)
-		delete(ctx.onPath, target)
-		if err != nil {
-			return nil, err
-		}
-		return expanded, nil
-	}
-
-	ctx.pathPointers[schema] = true
-	defer delete(ctx.pathPointers, schema)
-
-	if name, ok := ctx.nameByPointer[schema]; ok && !ctx.visiting[name] {
-		ctx.visiting[name] = true
-		ctx.onPath[schema] = name
-		ctx.nameStack = append(ctx.nameStack, name)
-		defer func() {
-			ctx.nameStack = ctx.nameStack[:len(ctx.nameStack)-1]
-			delete(ctx.visiting, name)
-			delete(ctx.onPath, schema)
-		}()
-	}
-
-	if schema.Properties != nil {
-		for name, prop := range schema.Properties {
-			inlined, err := n.inlineSchema(prop, ctx)
-			if err != nil {
-				return nil, err
-			}
-			schema.Properties[name] = inlined
-		}
-	}
-	if schema.Items != nil {
-		inlined, err := n.inlineSchema(schema.Items, ctx)
-		if err != nil {
-			return nil, err
-		}
-		schema.Items = inlined
-	}
-	if err := n.inlineSchemaList(schema.AllOf, ctx); err != nil {
-		return nil, err
-	}
-	if err := n.inlineSchemaList(schema.OneOf, ctx); err != nil {
-		return nil, err
-	}
-	if err := n.inlineSchemaList(schema.AnyOf, ctx); err != nil {
-		return nil, err
-	}
-	return schema, nil
-}
-
 func outermostName(ctx *inlineCtx) string {
 	for i := len(ctx.nameStack) - 1; i >= 0; i-- {
 		if ctx.nameStack[i] != "" {
@@ -544,17 +466,6 @@ func describeSchemaPath(ctx *inlineCtx) string {
 		return "<root>"
 	}
 	return strings.Join(ctx.nameStack, " -> ")
-}
-
-func (n *OpenAPIConverter) inlineSchemaList(list []*Schema, ctx *inlineCtx) error {
-	for i, item := range list {
-		inlined, err := n.inlineSchema(item, ctx)
-		if err != nil {
-			return err
-		}
-		list[i] = inlined
-	}
-	return nil
 }
 
 func cloneExample(src *Example) *Example {
@@ -583,28 +494,3 @@ func cloneResponse(src *Response) *Response {
 	return &cp
 }
 
-func cloneSchema(src *Schema) *Schema {
-	if src == nil {
-		return nil
-	}
-	cp := *src
-	if src.Properties != nil {
-		cp.Properties = make(map[string]*Schema, len(src.Properties))
-		for k, v := range src.Properties {
-			cp.Properties[k] = v
-		}
-	}
-	if src.Required != nil {
-		cp.Required = append([]*string(nil), src.Required...)
-	}
-	if src.AllOf != nil {
-		cp.AllOf = append([]*Schema(nil), src.AllOf...)
-	}
-	if src.OneOf != nil {
-		cp.OneOf = append([]*Schema(nil), src.OneOf...)
-	}
-	if src.AnyOf != nil {
-		cp.AnyOf = append([]*Schema(nil), src.AnyOf...)
-	}
-	return &cp
-}
