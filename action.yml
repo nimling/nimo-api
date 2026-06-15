@@ -62,6 +62,10 @@ inputs:
     description: 'Write API docs introduction file (for convert command)'
     required: false
     default: 'false'
+  single-file:
+    description: 'Write one self contained spec.json with operations and schemas inline (for convert command)'
+    required: false
+    default: 'false'
   # Merge command inputs
   specs:
     description: 'Space-separated list of spec files to merge (for merge command)'
@@ -138,6 +142,7 @@ runs:
         [ -n "${{ inputs.index-path }}" ] && ARGS="$ARGS -i ${{ inputs.index-path }}"
         [ "${{ inputs.merge-responses }}" == "true" ] && ARGS="$ARGS --merge-responses-inline"
         [ "${{ inputs.write-introduction }}" == "true" ] && ARGS="$ARGS --write-introduction"
+        [ "${{ inputs.single-file }}" == "true" ] && ARGS="$ARGS --single-file"
 
         $(go env GOPATH)/bin/nimo $ARGS
     - name: Run Merge Command
