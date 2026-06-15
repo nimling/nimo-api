@@ -56,6 +56,31 @@ func (n *OpenAPIConverter) NormalizeRefs() error {
 		return true
 	}
 
+	var rewriteRaw func(node interface{})
+	rewriteRaw = func(node interface{}) {
+		switch v := node.(type) {
+		case map[string]interface{}:
+			if ref, ok := v["$ref"].(string); ok && !strings.HasPrefix(ref, "#/") {
+				base := path.Base(ref)
+				ext := path.Ext(base)
+				lower := strings.ToLower(ext)
+				if lower == ".yml" || lower == ".yaml" || lower == ".json" {
+					name := strings.TrimSuffix(base, ext)
+					if names[name] {
+						v["$ref"] = schemasRefPrefix + name
+					}
+				}
+			}
+			for _, child := range v {
+				rewriteRaw(child)
+			}
+		case []interface{}:
+			for _, child := range v {
+				rewriteRaw(child)
+			}
+		}
+	}
+
 	var walk func(*Schema)
 	walk = func(s *Schema) {
 		if s == nil {
@@ -77,6 +102,7 @@ func (n *OpenAPIConverter) NormalizeRefs() error {
 		for _, sub := range s.AnyOf {
 			walk(sub)
 		}
+		rewriteRaw(s.AdditionalProperties)
 	}
 
 	for _, schema := range n.doc.Components.Schemas {

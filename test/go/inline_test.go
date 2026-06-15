@@ -342,3 +342,20 @@ func TestNoInlineLeavesRefs(t *testing.T) {
 		t.Fatalf("example default should keep $ref when no inline flag is set: %v", def)
 	}
 }
+
+func TestNormalizeRewritesAdditionalPropertiesFileRef(t *testing.T) {
+	dir := t.TempDir()
+	doc := runInlineConvert(t, dir, internal.InlineOptions{Schemas: true})
+
+	components := getMap(t, doc, "components")
+	schemas := getMap(t, components, "schemas")
+	thingMap := getMap(t, schemas, "ThingMap")
+	additional := getMap(t, thingMap, "additionalProperties")
+	ref, ok := additional["$ref"].(string)
+	if !ok {
+		t.Fatalf("ThingMap.additionalProperties should carry a $ref, got %v", additional)
+	}
+	if ref != "#/components/schemas/Thing" {
+		t.Fatalf("additionalProperties file ref should normalize to an internal pointer, got %q", ref)
+	}
+}
