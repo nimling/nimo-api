@@ -82,6 +82,23 @@ func (n *OpenAPIConverter) NormalizeRefs() error {
 		walk(schema)
 	}
 
+	for _, response := range n.doc.Components.Responses {
+		if response == nil {
+			continue
+		}
+		for _, content := range response.Content {
+			if content != nil {
+				walk(content.Schema)
+			}
+		}
+	}
+
+	for _, parameter := range n.doc.Components.Parameters {
+		if parameter != nil {
+			walk(parameter.Schema)
+		}
+	}
+
 	return n.walkOperationSchemas(func(schema **Schema) error {
 		walk(*schema)
 		return nil

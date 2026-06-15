@@ -28,6 +28,7 @@ var (
 	verboseWrite         bool
 	splitDir             string
 	splitFile            string
+	singleFile           bool
 )
 
 func NewConvertCommand() *cobra.Command {
@@ -72,6 +73,7 @@ Examples:
 	cmd.Flags().BoolVar(&verboseWrite, "verbose-write", false, "Print a bullet line for every file the converter writes to disk")
 	cmd.Flags().StringVar(&splitDir, "spec-dir", "", "Optional folder name (under the output directory) that wraps the spec.json and the operations and schemas folders. Default is empty, which writes spec.json and the operations and schemas folders directly under the output directory")
 	cmd.Flags().StringVar(&splitFile, "spec-file", "", "File name for the top entry of the spec output. Defaults to spec.json")
+	cmd.Flags().BoolVar(&singleFile, "single-file", false, "Write one self contained spec.json with operations and schemas inline instead of splitting them into sibling files")
 
 	return cmd
 }
@@ -86,7 +88,7 @@ func (o InlineOptions) Any() bool {
 	return o.Examples || o.Responses || o.Schemas
 }
 
-func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
+func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string, single bool) error {
 	if nginxOutput != "" {
 		if err := os.MkdirAll(nginxOutput, 0755); err != nil {
 			return fmt.Errorf("failed to create nginx output directory: %w", err)
@@ -94,7 +96,7 @@ func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs
 	}
 
 	for _, path := range args {
-		if err := processPath(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName); err != nil {
+		if err := processPath(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, single); err != nil {
 			return err
 		}
 	}
@@ -110,32 +112,32 @@ func runConvertCommand(cmd *cobra.Command, args []string) error {
 		Responses: inlineResponses || flat,
 		Schemas:   inlineSchemas || flat,
 	}
-	return RunConvert(args, nginxOutputDir, outputDir, docsDir, generateDocs, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline, inline, noRefs, splitDir, splitFile)
+	return RunConvert(args, nginxOutputDir, outputDir, docsDir, generateDocs, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline, inline, noRefs, splitDir, splitFile, singleFile)
 }
 
-func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
+func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string, single bool) error {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
 	}
-	
+
 	if len(matches) == 0 {
 		return fmt.Errorf("no matches found for pattern: %s", pattern)
 	}
-	
+
 	for _, path := range matches {
 		fileInfo, err := os.Stat(path)
 		if err != nil {
 			return err
 		}
-		
+
 		if fileInfo.IsDir() {
 			err = filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
 				if err != nil {
 					return err
 				}
 				if !info.IsDir() && (strings.HasSuffix(info.Name(), ".yml") || strings.HasSuffix(info.Name(), ".yaml")) {
-					return processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName)
+					return processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, single)
 				}
 				return nil
 			})
@@ -143,17 +145,17 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 				return err
 			}
 		} else if strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml") {
-			err = processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName)
+			err = processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, single)
 			if err != nil {
 				return err
 			}
 		}
 	}
-	
+
 	return nil
 }
 
-func processFile(filePath string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
+func processFile(filePath string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string, single bool) error {
 	conv, err := converter.NewOpenApiConverter(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to load OpenAPI specification: %w", err)
@@ -227,7 +229,11 @@ func processFile(filePath string, nginxOutput, specOutput, docsPath string, genD
 		outputDirForSpec = docsPath
 	}
 
-	if err = conv.WriteSplitOpenAPISpec(outputDirForSpec, splitDirName, splitFileName); err != nil {
+	if single {
+		if err = conv.WriteOpenAPISpec(outputDirForSpec); err != nil {
+			return fmt.Errorf("failed to write single spec: %w", err)
+		}
+	} else if err = conv.WriteSplitOpenAPISpec(outputDirForSpec, splitDirName, splitFileName); err != nil {
 		return fmt.Errorf("failed to write split spec: %w", err)
 	}
 
