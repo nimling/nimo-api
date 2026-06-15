@@ -136,38 +136,46 @@ func TestBookableGetMeRefRewritten(t *testing.T) {
 	}
 }
 
-func TestBookablePostBookingMixedExamples(t *testing.T) {
+func TestBookablePostBookingExamplesResolved(t *testing.T) {
 	_, specOut := convertBookableSpec(t)
 	doc := readJointSpec(t, specOut)
 
 	reqExamples := findRequestBodyExamples(t, doc, "/booking", "post")
-	teamMeeting, ok := reqExamples["team_meeting"].(map[string]any)
-	if !ok {
-		t.Fatalf("/booking post requestBody examples.team_meeting missing")
-	}
-	if _, isRef := teamMeeting["$ref"].(string); !isRef {
-		t.Fatalf("team_meeting should be an internal ref entry, got %v", teamMeeting)
-	}
+	assertExampleResolvesToValue(t, doc, reqExamples, "default")
 
 	created := findResponseExamples(t, doc, "/booking", "post", "201")
-	if _, ok := created["booking_created"]; !ok {
-		t.Fatalf("/booking 201 examples.booking_created missing")
+	assertExampleResolvesToValue(t, doc, created, "default")
+}
+
+func assertExampleResolvesToValue(t *testing.T, doc map[string]any, examples map[string]any, key string) {
+	t.Helper()
+	entry, ok := examples[key].(map[string]any)
+	if !ok {
+		t.Fatalf("example %q missing or wrong type", key)
+	}
+	ref, ok := entry["$ref"].(string)
+	if !ok {
+		t.Fatalf("example %q did not become an internal ref entry: %v", key, entry)
+	}
+	if !strings.HasPrefix(ref, "#/components/examples/") {
+		t.Fatalf("example %q expected internal example ref, got %q", key, ref)
 	}
 
-	conflict := findResponseExamples(t, doc, "/booking", "post", "409")
-	timeConflict, ok := conflict["time_conflict"].(map[string]any)
+	name := strings.TrimPrefix(ref, "#/components/examples/")
+	components, ok := doc["components"].(map[string]any)
 	if !ok {
-		t.Fatalf("/booking 409 examples.time_conflict missing")
+		t.Fatalf("components missing")
 	}
-	if _, hasRef := timeConflict["$ref"]; hasRef {
-		t.Fatalf("inline example time_conflict should not be rewritten to a $ref")
-	}
-	value, ok := timeConflict["value"].(map[string]any)
+	comExamples, ok := components["examples"].(map[string]any)
 	if !ok {
-		t.Fatalf("time_conflict value missing")
+		t.Fatalf("components.examples missing")
 	}
-	if _, ok := value["error"]; !ok {
-		t.Fatalf("time_conflict.value.error missing")
+	target, ok := comExamples[name].(map[string]any)
+	if !ok {
+		t.Fatalf("components.examples.%s missing", name)
+	}
+	if _, hasValue := target["value"]; !hasValue {
+		t.Fatalf("components.examples.%s missing value field", name)
 	}
 }
 

@@ -1,9 +1,9 @@
 package test
 
 import (
+	"github.com/nimling/nimo-api/internal"
 	"os"
 	"testing"
-	"github.com/nimling/nimo-api/internal"
 )
 
 func TestConvertCommand(t *testing.T) {
@@ -44,8 +44,8 @@ func TestConvertCommand(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Convert without input file",
-			args: []string{},
+			name:    "Convert without input file",
+			args:    []string{},
 			wantErr: true,
 		},
 	}
@@ -54,13 +54,13 @@ func TestConvertCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := internal.NewConvertCommand()
 			cmd.SetArgs(tt.args)
-			
+
 			err := cmd.Execute()
-			
+
 			if (err != nil) != tt.wantErr {
 				t.Errorf("convert command error = %v, wantErr %v", err, tt.wantErr)
 			}
-			
+
 			if !tt.wantErr && err == nil {
 				for i, arg := range tt.args {
 					if arg == "--docs" || arg == "-o" {
@@ -75,7 +75,7 @@ func TestConvertCommand(t *testing.T) {
 			}
 		})
 	}
-	
+
 	os.RemoveAll("../../tmp")
 }
 
@@ -83,7 +83,7 @@ func TestRunConvertDirectly(t *testing.T) {
 	args := []string{"../examples/spec.yml"}
 	defer os.RemoveAll("../../tmp")
 
-	err := internal.RunConvert(args, "", "../../tmp/test-direct", "", false, "", "", "", false, false, internal.InlineOptions{})
+	err := internal.RunConvert(args, "", "../../tmp/test-direct", "", false, "", "", "", false, false, internal.InlineOptions{}, false, "", "")
 	if err != nil {
 		t.Errorf("RunConvert failed: %v", err)
 	}

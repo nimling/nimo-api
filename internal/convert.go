@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
 	"github.com/nimling/nimo-api/converter"
 	"github.com/spf13/cobra"
 )
@@ -22,13 +23,13 @@ var (
 	inlineExamples       bool
 	inlineResponses      bool
 	inlineSchemas        bool
+	inlineParameters     bool
 	flat                 bool
 	noRefs               bool
 	verbose              bool
 	verboseWrite         bool
 	splitDir             string
 	splitFile            string
-	singleFile           bool
 )
 
 func NewConvertCommand() *cobra.Command {
@@ -45,16 +46,16 @@ The convert command processes YAML/JSON API specifications and generates:
 Examples:
   # Convert a single spec to VitePress docs
   openapi-converter convert api.yml -d ./docs --write-introduction
-  
+
   # Generate Nginx configuration
   openapi-converter convert api.yml -o ./nginx --file-prefix api
-  
+
   # Process multiple specs with common prefix
   openapi-converter convert *.yml -d ./docs --common-prefix v1`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: runConvertCommand,
 	}
-	
+
 	cmd.Flags().StringVar(&nginxOutputDir, "nginx-output", "", "Output directory for Nginx configuration files")
 	cmd.Flags().StringVarP(&outputDir, "output", "o", os.Getenv("NIMO_OUTPUT"), "Output directory for spec.json (can also be set via NIMO_OUTPUT env var)")
 	cmd.Flags().StringVar(&docsDir, "docs", "", "Output directory for VitePress markdown files (overrides output dir)")
@@ -67,28 +68,29 @@ Examples:
 	cmd.Flags().BoolVar(&inlineExamples, "inline-examples", false, "Inline #/components/examples/* refs at every consumption site and drop the components.examples map")
 	cmd.Flags().BoolVar(&inlineResponses, "inline-responses", false, "Inline #/components/responses/* refs at every consumption site and drop the components.responses map")
 	cmd.Flags().BoolVar(&inlineSchemas, "inline-schemas", false, "Inline #/components/schemas/* refs at every consumption site and drop the components.schemas map. Circular schemas keep their ref")
-	cmd.Flags().BoolVar(&flat, "inline", false, "Shortcut for --inline-examples --inline-responses --inline-schemas")
+	cmd.Flags().BoolVar(&inlineParameters, "inline-parameters", false, "Inline #/components/parameters/* refs at every consumption site and drop the components.parameters map")
+	cmd.Flags().BoolVar(&flat, "inline", false, "Shortcut for --inline-examples --inline-responses --inline-schemas --inline-parameters. Writes one self contained spec.json instead of splitting operations and schemas into sibling files")
 	cmd.Flags().BoolVar(&noRefs, "no-refs", false, "After --inline or --inline-* flags, replace every remaining internal $ref with a deep copy of the referenced node so the output has no internal refs left. Cycles keep the deepest $ref. No-op without an --inline-* flag")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Print per-iteration diagnostic logs during ref resolution and inlining")
 	cmd.Flags().BoolVar(&verboseWrite, "verbose-write", false, "Print a bullet line for every file the converter writes to disk")
 	cmd.Flags().StringVar(&splitDir, "spec-dir", "", "Optional folder name (under the output directory) that wraps the spec.json and the operations and schemas folders. Default is empty, which writes spec.json and the operations and schemas folders directly under the output directory")
 	cmd.Flags().StringVar(&splitFile, "spec-file", "", "File name for the top entry of the spec output. Defaults to spec.json")
-	cmd.Flags().BoolVar(&singleFile, "single-file", false, "Write one self contained spec.json with operations and schemas inline instead of splitting them into sibling files")
 
 	return cmd
 }
 
 type InlineOptions struct {
-	Examples  bool
-	Responses bool
-	Schemas   bool
+	Examples   bool
+	Responses  bool
+	Schemas    bool
+	Parameters bool
 }
 
 func (o InlineOptions) Any() bool {
-	return o.Examples || o.Responses || o.Schemas
+	return o.Examples || o.Responses || o.Schemas || o.Parameters
 }
 
-func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string, single bool) error {
+func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
 	if nginxOutput != "" {
 		if err := os.MkdirAll(nginxOutput, 0755); err != nil {
 			return fmt.Errorf("failed to create nginx output directory: %w", err)
@@ -96,7 +98,7 @@ func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs
 	}
 
 	for _, path := range args {
-		if err := processPath(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, single); err != nil {
+		if err := processPath(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName); err != nil {
 			return err
 		}
 	}
@@ -108,14 +110,15 @@ func runConvertCommand(cmd *cobra.Command, args []string) error {
 	converter.Verbose = verbose
 	converter.VerboseWrite = verboseWrite
 	inline := InlineOptions{
-		Examples:  inlineExamples || flat,
-		Responses: inlineResponses || flat,
-		Schemas:   inlineSchemas || flat,
+		Examples:   inlineExamples || flat,
+		Responses:  inlineResponses || flat,
+		Schemas:    inlineSchemas || flat,
+		Parameters: inlineParameters || flat,
 	}
-	return RunConvert(args, nginxOutputDir, outputDir, docsDir, generateDocs, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline, inline, noRefs, splitDir, splitFile, singleFile)
+	return RunConvert(args, nginxOutputDir, outputDir, docsDir, generateDocs, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline, inline, noRefs, splitDir, splitFile)
 }
 
-func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string, single bool) error {
+func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
@@ -137,7 +140,7 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 					return err
 				}
 				if !info.IsDir() && (strings.HasSuffix(info.Name(), ".yml") || strings.HasSuffix(info.Name(), ".yaml")) {
-					return processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, single)
+					return processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName)
 				}
 				return nil
 			})
@@ -145,7 +148,7 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 				return err
 			}
 		} else if strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml") {
-			err = processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, single)
+			err = processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName)
 			if err != nil {
 				return err
 			}
@@ -155,7 +158,7 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 	return nil
 }
 
-func processFile(filePath string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string, single bool) error {
+func processFile(filePath string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
 	conv, err := converter.NewOpenApiConverter(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to load OpenAPI specification: %w", err)
@@ -181,6 +184,12 @@ func processFile(filePath string, nginxOutput, specOutput, docsPath string, genD
 		fmt.Printf("✓ Merged response definitions for %s\n", filePath)
 	}
 
+	if inline.Parameters {
+		if err = conv.InlineParameters(); err != nil {
+			return fmt.Errorf("inline parameters error: %s", err)
+		}
+		fmt.Printf("✓ Inlined parameters for %s\n", filePath)
+	}
 	if inline.Examples {
 		if err = conv.InlineExamples(); err != nil {
 			return fmt.Errorf("inline examples error: %s", err)
@@ -221,7 +230,7 @@ func processFile(filePath string, nginxOutput, specOutput, docsPath string, genD
 
 		fmt.Printf("✓ Generated Nginx config: %s\n", outputFile)
 	}
-	
+
 	outputDirForSpec := filepath.Dir(filePath)
 	if len(specOutput) > 0 {
 		outputDirForSpec = specOutput
@@ -229,9 +238,9 @@ func processFile(filePath string, nginxOutput, specOutput, docsPath string, genD
 		outputDirForSpec = docsPath
 	}
 
-	if single {
+	if inline.Any() {
 		if err = conv.WriteOpenAPISpec(outputDirForSpec); err != nil {
-			return fmt.Errorf("failed to write single spec: %w", err)
+			return fmt.Errorf("failed to write spec: %w", err)
 		}
 	} else if err = conv.WriteSplitOpenAPISpec(outputDirForSpec, splitDirName, splitFileName); err != nil {
 		return fmt.Errorf("failed to write split spec: %w", err)

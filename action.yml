@@ -62,10 +62,44 @@ inputs:
     description: 'Write API docs introduction file (for convert command)'
     required: false
     default: 'false'
-  single-file:
-    description: 'Write one self contained spec.json with operations and schemas inline (for convert command)'
+  inline-examples:
+    description: 'Inline #/components/examples/* refs and drop the components.examples map (for convert command)'
     required: false
     default: 'false'
+  inline-responses:
+    description: 'Inline #/components/responses/* refs and drop the components.responses map (for convert command)'
+    required: false
+    default: 'false'
+  inline-schemas:
+    description: 'Inline #/components/schemas/* refs and drop the components.schemas map, circular schemas keep their ref (for convert command)'
+    required: false
+    default: 'false'
+  inline-parameters:
+    description: 'Inline #/components/parameters/* refs and drop the components.parameters map (for convert command)'
+    required: false
+    default: 'false'
+  inline:
+    description: 'Inline examples, responses, schemas and parameters and write one self contained spec.json (for convert command)'
+    required: false
+    default: 'false'
+  no-refs:
+    description: 'After inlining, replace every remaining internal $ref with a deep copy of the referenced node (for convert command)'
+    required: false
+    default: 'false'
+  verbose:
+    description: 'Print per iteration diagnostic logs during ref resolution and inlining (for convert command)'
+    required: false
+    default: 'false'
+  verbose-write:
+    description: 'Print a line for every file the converter writes to disk (for convert command)'
+    required: false
+    default: 'false'
+  spec-dir:
+    description: 'Folder name under the output directory that wraps spec.json and the operations and schemas folders (for convert command)'
+    required: false
+  spec-file:
+    description: 'File name for the top entry of the spec output, defaults to spec.json (for convert command)'
+    required: false
   # Merge command inputs
   specs:
     description: 'Space-separated list of spec files to merge (for merge command)'
@@ -142,7 +176,16 @@ runs:
         [ -n "${{ inputs.index-path }}" ] && ARGS="$ARGS -i ${{ inputs.index-path }}"
         [ "${{ inputs.merge-responses }}" == "true" ] && ARGS="$ARGS --merge-responses-inline"
         [ "${{ inputs.write-introduction }}" == "true" ] && ARGS="$ARGS --write-introduction"
-        [ "${{ inputs.single-file }}" == "true" ] && ARGS="$ARGS --single-file"
+        [ "${{ inputs.inline-examples }}" == "true" ] && ARGS="$ARGS --inline-examples"
+        [ "${{ inputs.inline-responses }}" == "true" ] && ARGS="$ARGS --inline-responses"
+        [ "${{ inputs.inline-schemas }}" == "true" ] && ARGS="$ARGS --inline-schemas"
+        [ "${{ inputs.inline-parameters }}" == "true" ] && ARGS="$ARGS --inline-parameters"
+        [ "${{ inputs.inline }}" == "true" ] && ARGS="$ARGS --inline"
+        [ "${{ inputs.no-refs }}" == "true" ] && ARGS="$ARGS --no-refs"
+        [ "${{ inputs.verbose }}" == "true" ] && ARGS="$ARGS --verbose"
+        [ "${{ inputs.verbose-write }}" == "true" ] && ARGS="$ARGS --verbose-write"
+        [ -n "${{ inputs.spec-dir }}" ] && ARGS="$ARGS --spec-dir ${{ inputs.spec-dir }}"
+        [ -n "${{ inputs.spec-file }}" ] && ARGS="$ARGS --spec-file ${{ inputs.spec-file }}"
 
         $(go env GOPATH)/bin/nimo $ARGS
     - name: Run Merge Command

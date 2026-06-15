@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	examplesRefPrefix  = "#/components/examples/"
-	responsesRefPrefix = "#/components/responses/"
-	schemasRefPrefix   = "#/components/schemas/"
+	examplesRefPrefix   = "#/components/examples/"
+	responsesRefPrefix  = "#/components/responses/"
+	schemasRefPrefix    = "#/components/schemas/"
+	parametersRefPrefix = "#/components/parameters/"
 )
 
 // NormalizeRefs walks every schema ref in the spec and rewrites file-style
@@ -158,6 +159,49 @@ func (n *OpenAPIConverter) InlineResponses() error {
 	}
 
 	n.doc.Components.Responses = nil
+	return nil
+}
+
+func (n *OpenAPIConverter) InlineParameters() error {
+	if n.doc == nil || n.doc.Paths == nil {
+		return nil
+	}
+	if n.doc.Components == nil || n.doc.Components.Parameters == nil {
+		return nil
+	}
+
+	for _, pathItem := range n.doc.Paths {
+		if pathItem == nil {
+			continue
+		}
+		for i, param := range pathItem.Parameters {
+			if param == nil || param.Ref == nil {
+				continue
+			}
+			resolved := n.resolveInternalParameterRef(*param.Ref)
+			if resolved == nil {
+				return fmt.Errorf("unresolved internal parameter ref %q", *param.Ref)
+			}
+			pathItem.Parameters[i] = cloneParameter(resolved)
+		}
+		for _, op := range pathItem.Operations() {
+			if op == nil {
+				continue
+			}
+			for i, param := range op.Parameters {
+				if param == nil || param.Ref == nil {
+					continue
+				}
+				resolved := n.resolveInternalParameterRef(*param.Ref)
+				if resolved == nil {
+					return fmt.Errorf("unresolved internal parameter ref %q", *param.Ref)
+				}
+				op.Parameters[i] = cloneParameter(resolved)
+			}
+		}
+	}
+
+	n.doc.Components.Parameters = nil
 	return nil
 }
 
@@ -420,6 +464,17 @@ func (n *OpenAPIConverter) resolveInternalResponseRef(ref string) *Response {
 	return n.doc.Components.Responses[name]
 }
 
+func (n *OpenAPIConverter) resolveInternalParameterRef(ref string) *Parameter {
+	if !strings.HasPrefix(ref, parametersRefPrefix) {
+		return nil
+	}
+	name := strings.TrimPrefix(ref, parametersRefPrefix)
+	if n.doc.Components == nil || n.doc.Components.Parameters == nil {
+		return nil
+	}
+	return n.doc.Components.Parameters[name]
+}
+
 func (n *OpenAPIConverter) walkOperationSchemas(fn func(schema **Schema) error) error {
 	for _, pathItem := range n.doc.Paths {
 		if pathItem == nil {
@@ -511,3 +566,17 @@ func cloneResponse(src *Response) *Response {
 	return &cp
 }
 
+func cloneParameter(src *Parameter) *Parameter {
+	if src == nil {
+		return nil
+	}
+	cp := *src
+	cp.Ref = nil
+	if src.Examples != nil {
+		cp.Examples = make(map[string]*Example, len(src.Examples))
+		for k, v := range src.Examples {
+			cp.Examples[k] = cloneExample(v)
+		}
+	}
+	return &cp
+}

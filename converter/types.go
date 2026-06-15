@@ -88,6 +88,8 @@ type Parameter struct {
 	Description string              `yaml:"description,omitempty"`
 	Example     interface{}         `yaml:"example,omitempty"`
 	Examples    map[string]*Example `yaml:"examples,omitempty"`
+	Style       string              `yaml:"style,omitempty"`
+	Explode     *bool               `yaml:"explode,omitempty"`
 }
 
 type PathItem struct {
@@ -110,6 +112,15 @@ type Schema struct {
 	Example     interface{}        `yaml:"example,omitempty"`
 	Nullable    *bool              `yaml:"nullable,omitempty"`
 	Items       *Schema            `yaml:"items,omitempty"`
+
+	Enum                 []interface{} `yaml:"enum,omitempty"`
+	Default              interface{}   `yaml:"default,omitempty"`
+	Minimum              interface{}   `yaml:"minimum,omitempty"`
+	Maximum              interface{}   `yaml:"maximum,omitempty"`
+	MinLength            interface{}   `yaml:"minLength,omitempty"`
+	MaxLength            interface{}   `yaml:"maxLength,omitempty"`
+	Pattern              *string       `yaml:"pattern,omitempty"`
+	AdditionalProperties interface{}   `yaml:"additionalProperties,omitempty"`
 
 	AllOf []*Schema `yaml:"allOf,omitempty"`
 	OneOf []*Schema `yaml:"oneOf,omitempty"`
