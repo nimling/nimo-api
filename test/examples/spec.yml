@@ -58,6 +58,110 @@ paths:
                 $ref: '#/components/schemas/User'
         '404':
           description: User not found
+    put:
+      summary: Replace user
+      description: Replace a user record wholesale with the supplied object. Every field must be present in the request body.
+      operationId: putUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: User replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    patch:
+      summary: Update user
+      description: Apply a partial update to a user. Only the supplied fields are written, the rest of the record is left untouched.
+      operationId: patchUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+    delete:
+      summary: Delete user
+      description: Remove a user from the system by their unique identifier. The response carries no body.
+      operationId: deleteUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: User deleted
+        '404':
+          description: User not found
+    options:
+      summary: User preflight
+      description: Advertise the methods and headers allowed on a single user resource, used by browser preflight requests.
+      operationId: optionsUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Allowed methods returned in the Allow header
+    head:
+      summary: User headers
+      description: Return the headers a get request would return for this user, with no response body.
+      operationId: headUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Headers only
+        '404':
+          description: User not found
+    trace:
+      summary: User trace
+      description: Echo the received request back to the caller for diagnostics against a single user resource.
+      operationId: traceUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Echoed request
 components:
   schemas:
     User:

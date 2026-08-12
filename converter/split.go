@@ -114,7 +114,7 @@ func splitOutOperations(doc map[string]interface{}, operationsDir string) error 
 	if !ok {
 		return nil
 	}
-	methods := []string{"get", "post", "put", "patch", "delete", "head", "options"}
+	methods := []string{"get", "post", "put", "patch", "delete", "options", "head", "trace"}
 	for path, pathItemRaw := range paths {
 		pathItem, ok := pathItemRaw.(map[string]interface{})
 		if !ok {

@@ -50,6 +50,57 @@ paths:
                 $ref: '#/components/schemas/Thing'
         '400':
           $ref: '#/components/responses/BadRequest'
+    put:
+      summary: Replace a thing
+      description: Replaces a thing with the supplied body.
+      operationId: putThing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Thing'
+      responses:
+        '200':
+          description: Replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thing'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    patch:
+      $ref: './PatchThing.yml'
+    delete:
+      summary: Delete a thing
+      description: Deletes a thing and returns nothing.
+      operationId: deleteThing
+      responses:
+        '204':
+          description: Deleted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    options:
+      summary: Thing preflight
+      description: Advertises the methods and headers allowed on the things resource.
+      operationId: optionsThings
+      responses:
+        '204':
+          description: Allowed methods returned in the Allow header
+    head:
+      summary: Thing headers
+      description: Returns the headers a list request would return, with no body.
+      operationId: headThings
+      responses:
+        '200':
+          description: Headers only
+    trace:
+      summary: Thing trace
+      description: Echoes the received request back for diagnostics.
+      operationId: traceThings
+      responses:
+        '200':
+          description: Echoed request
 components:
   schemas:
     Thing:

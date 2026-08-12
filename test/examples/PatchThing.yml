@@ -1,0 +1,23 @@
+summary: Update a thing
+description: Applies a partial update to a thing and returns the updated record.
+operationId: patchThing
+parameters:
+  - $ref: '#/components/parameters/Limit'
+requestBody:
+  required: true
+  content:
+    application/json:
+      schema:
+        $ref: '#/components/schemas/Thing'
+      examples:
+        default:
+          $ref: '#/components/examples/thingsExample'
+responses:
+  '200':
+    description: Updated
+    content:
+      application/json:
+        schema:
+          $ref: '#/components/schemas/Thing'
+  '400':
+    $ref: '#/components/responses/BadRequest'

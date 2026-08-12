@@ -32,6 +32,26 @@ func (p *PathItem) Operations() OperationRecord {
 		operations[MethodPOST] = p.Post
 	}
 
+	if p.Patch != nil {
+		p.Patch.Method = "PATCH"
+		operations[MethodPATCH] = p.Patch
+	}
+
+	if p.Options != nil {
+		p.Options.Method = "OPTIONS"
+		operations[MethodOPTIONS] = p.Options
+	}
+
+	if p.Head != nil {
+		p.Head.Method = "HEAD"
+		operations[MethodHEAD] = p.Head
+	}
+
+	if p.Trace != nil {
+		p.Trace.Method = "TRACE"
+		operations[MethodTRACE] = p.Trace
+	}
+
 	return operations
 }
 
@@ -46,6 +66,14 @@ func (p *PathItem) SetMethodOperation(method OperationMethod, operation *Operati
 		p.Put = operation
 	case MethodPOST:
 		p.Post = operation
+	case MethodPATCH:
+		p.Patch = operation
+	case MethodOPTIONS:
+		p.Options = operation
+	case MethodHEAD:
+		p.Head = operation
+	case MethodTRACE:
+		p.Trace = operation
 	}
 }
 

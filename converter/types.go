@@ -1,10 +1,14 @@
 package converter
 
 const (
-	MethodGET    OperationMethod = "GET"
-	MethodDELETE OperationMethod = "DELETE"
-	MethodPUT    OperationMethod = "PUT"
-	MethodPOST   OperationMethod = "POST"
+	MethodGET     OperationMethod = "GET"
+	MethodDELETE  OperationMethod = "DELETE"
+	MethodPUT     OperationMethod = "PUT"
+	MethodPOST    OperationMethod = "POST"
+	MethodPATCH   OperationMethod = "PATCH"
+	MethodOPTIONS OperationMethod = "OPTIONS"
+	MethodHEAD    OperationMethod = "HEAD"
+	MethodTRACE   OperationMethod = "TRACE"
 )
 
 type OperationMethod string
@@ -97,7 +101,11 @@ type PathItem struct {
 	Get         *Operation   `yaml:"get,omitempty"`
 	Post        *Operation   `yaml:"post,omitempty"`
 	Put         *Operation   `yaml:"put,omitempty"`
+	Patch       *Operation   `yaml:"patch,omitempty"`
 	Delete      *Operation   `yaml:"delete,omitempty"`
+	Options     *Operation   `yaml:"options,omitempty"`
+	Head        *Operation   `yaml:"head,omitempty"`
+	Trace       *Operation   `yaml:"trace,omitempty"`
 	Summary     *string      `yaml:"summary,omitempty"`
 	Description *string      `yaml:"description,omitempty"`
 }

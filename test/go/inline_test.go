@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/nimling/nimo-api/internal"
+	"gopkg.in/yaml.v3"
 )
 
 const inlineSpecPath = "../examples/inline_spec.yml"
@@ -340,6 +342,141 @@ func TestNoInlineLeavesRefs(t *testing.T) {
 	def := getMap(t, examples, "default")
 	if _, hasRef := def["$ref"]; !hasRef {
 		t.Fatalf("example default should keep $ref when no inline flag is set: %v", def)
+	}
+}
+
+var httpMethods = []string{"get", "post", "put", "patch", "delete", "options", "head", "trace"}
+
+func getSpecMethods(t *testing.T, specPath string) map[string]map[string]bool {
+	t.Helper()
+	raw, err := os.ReadFile(specPath)
+	if err != nil {
+		t.Fatalf("failed to read %s: %v", specPath, err)
+	}
+	var source struct {
+		Paths map[string]map[string]any `yaml:"paths"`
+	}
+	if err := yaml.Unmarshal(raw, &source); err != nil {
+		t.Fatalf("failed to parse %s: %v", specPath, err)
+	}
+	known := map[string]bool{}
+	for _, method := range httpMethods {
+		known[method] = true
+	}
+	found := map[string]map[string]bool{}
+	for path, item := range source.Paths {
+		verbs := map[string]bool{}
+		for key := range item {
+			if known[key] {
+				verbs[key] = true
+			}
+		}
+		found[path] = verbs
+	}
+	return found
+}
+
+func TestSplitKeepsEveryHTTPMethod(t *testing.T) {
+	dir := t.TempDir()
+	doc := runInlineConvert(t, dir, internal.InlineOptions{})
+
+	pathItem := getMap(t, getMap(t, doc, "paths"), "/things")
+	for _, method := range httpMethods {
+		if _, ok := pathItem[method]; !ok {
+			t.Fatalf("split output dropped the %s operation on /things", method)
+		}
+	}
+}
+
+func TestFlatInlineKeepsEveryHTTPMethod(t *testing.T) {
+	dir := t.TempDir()
+	doc := runInlineConvert(t, dir, internal.InlineOptions{Examples: true, Responses: true, Schemas: true, Parameters: true})
+
+	pathItem := getMap(t, getMap(t, doc, "paths"), "/things")
+	for _, method := range httpMethods {
+		op, ok := pathItem[method].(map[string]any)
+		if !ok {
+			t.Fatalf("single file output dropped the %s operation on /things", method)
+		}
+		if _, isRef := op["$ref"]; isRef {
+			t.Fatalf("%s operation must be inline in a single file spec, found a $ref", method)
+		}
+	}
+}
+
+func TestConvertedMethodsMatchSource(t *testing.T) {
+	dir := t.TempDir()
+	doc := runInlineConvert(t, dir, internal.InlineOptions{})
+
+	source := getSpecMethods(t, inlineSpecPath)
+	paths := getMap(t, doc, "paths")
+	for path, verbs := range source {
+		pathItem := getMap(t, paths, path)
+		for verb := range verbs {
+			if _, ok := pathItem[verb]; !ok {
+				t.Fatalf("path %s declares %s in the source spec but the converted spec has no such operation", path, verb)
+			}
+		}
+	}
+}
+
+func TestExternalPatchOperationRefResolves(t *testing.T) {
+	dir := t.TempDir()
+	doc := runInlineConvert(t, dir, internal.InlineOptions{})
+
+	op := getOp(t, doc, "/things", "patch")
+	id, ok := op["operationId"].(string)
+	if !ok || id != "patchThing" {
+		t.Fatalf("external patch operation ref did not resolve, got operationId %v", op["operationId"])
+	}
+	params := getSlice(t, op, "parameters")
+	if len(params) != 1 {
+		t.Fatalf("expected the resolved patch operation to keep its parameter, got %v", params)
+	}
+}
+
+func TestNginxAllowsEveryHTTPMethod(t *testing.T) {
+	dir := t.TempDir()
+	if err := internal.RunConvert(
+		[]string{"../examples/spec.yml"},
+		dir,
+		dir,
+		"",
+		false,
+		"",
+		"",
+		"",
+		false,
+		false,
+		internal.InlineOptions{},
+		false,
+		"",
+		"",
+	); err != nil {
+		t.Fatalf("RunConvert failed: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "spec.conf.template"))
+	if err != nil {
+		t.Fatalf("failed to read generated nginx config: %v", err)
+	}
+	allowed := []string{}
+	for _, line := range strings.Split(string(raw), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "limit_except ") {
+			continue
+		}
+		verbs := strings.TrimSuffix(strings.TrimPrefix(trimmed, "limit_except "), " {")
+		allowed = append(allowed, strings.Fields(verbs)...)
+	}
+	if len(allowed) == 0 {
+		t.Fatalf("generated nginx config has no limit_except directive: %s", raw)
+	}
+	for _, method := range httpMethods {
+		verb := strings.ToUpper(method)
+		if !slices.Contains(allowed, verb) {
+			t.Fatalf("nginx limit_except directives omit %s and would deny it: %s", verb, raw)
+		}
 	}
 }
 
