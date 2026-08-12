@@ -8,7 +8,7 @@ inputs:
   nimo-version:
     description: 'Pinned nimo CLI version'
     required: false
-    default: '1.0.20'
+    default: '1.0.21'
   command:
     description: 'Command to run: generate, convert, merge, or sync'
     required: true
