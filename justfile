@@ -11,8 +11,12 @@ default:
 build:
     go build -ldflags "-X github.com/nimling/nimo-api/internal.Version=$APP_VERSION" -o dist/{{APP_NAME}}{{bin_ext}} ./cmd
 
-install: build
+install: build install-tools
     cp dist/{{APP_NAME}}{{bin_ext}} $(go env GOPATH)/bin/
+
+install-tools:
+    go install github.com/nimling/sbump/cmd@latest
+    mv "$(go env GOPATH)/bin/cmd" "$(go env GOPATH)/bin/sbump"
 
 vet:
     go vet ./...
@@ -27,4 +31,4 @@ clean:
     rm -rf dist
 
 deploy:
-    ../samna/sbump/sbump.sh patch --env APP_VERSION --yaml ./action.yml@.inputs.nimo-version.default --push-version --auto --workflow
+    sbump patch --env APP_VERSION --yaml ./action.yml@.inputs.nimo-version.default --push-version --auto --workflow
