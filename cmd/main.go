@@ -18,6 +18,8 @@ func main() {
 		},
 	}
 
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
 	defaultHelp := rootCmd.HelpFunc()
 	rootCmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		internal.PrintBanner()
@@ -28,6 +30,8 @@ func main() {
 	rootCmd.AddCommand(internal.NewConvertCommand())
 	rootCmd.AddCommand(internal.NewMergeCommand())
 	rootCmd.AddCommand(internal.NewSyncCommand())
+	rootCmd.AddCommand(internal.NewSkillCommand())
+	rootCmd.AddCommand(internal.NewCompletionCommand())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
