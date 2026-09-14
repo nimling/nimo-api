@@ -190,6 +190,10 @@ type Schema struct {
 	AllOf []*Schema `yaml:"allOf,omitempty"`
 	OneOf []*Schema `yaml:"oneOf,omitempty"`
 	AnyOf []*Schema `yaml:"anyOf,omitempty"`
+
+	// Specification extensions (`x-` keys) and any keyword the struct does not name
+	// ride through conversion untouched instead of being silently dropped.
+	Extensions map[string]interface{} `yaml:",inline"`
 }
 
 type Operation struct {
@@ -203,6 +207,10 @@ type Operation struct {
 	RequestBody *RequestBody          `yaml:"requestBody,omitempty"`
 	Tags        *[]string             `yaml:"tags,omitempty"`
 	Method      string                `yaml:"-"`
+
+	// Specification extensions (`x-` keys) ride through conversion untouched
+	// instead of being silently dropped.
+	Extensions map[string]interface{} `yaml:",inline"`
 }
 
 type RequestBody struct {
