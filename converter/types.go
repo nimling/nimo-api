@@ -1,5 +1,11 @@
 package converter
 
+import (
+	"fmt"
+
+	"gopkg.in/yaml.v3"
+)
+
 const (
 	MethodGET     OperationMethod = "GET"
 	MethodDELETE  OperationMethod = "DELETE"
@@ -110,9 +116,60 @@ type PathItem struct {
 	Description *string      `yaml:"description,omitempty"`
 }
 
+// SchemaType is a schema's `type`. OpenAPI 3.1 adopts JSON Schema 2020-12, where it is either one
+// type name or a list of them, and the list is how 3.1 states a nullable field: `[string, "null"]`.
+// 3.0 allowed one name only and stated the same thing as `nullable: true`, the `Nullable` field
+// below.
+//
+// Held as a list whichever way it arrived, so nothing downstream asks which spelling it got, and
+// written back in the shape it came in: one name marshals as a scalar, several as a sequence.
+type SchemaType []string
+
+func (t *SchemaType) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		var name string
+		if err := value.Decode(&name); err != nil {
+			return err
+		}
+		*t = SchemaType{name}
+		return nil
+
+	case yaml.SequenceNode:
+		var names []string
+		if err := value.Decode(&names); err != nil {
+			return err
+		}
+		*t = names
+		return nil
+
+	default:
+		return fmt.Errorf("line %d: `type` must be a name or a list of names", value.Line)
+	}
+}
+
+func (t SchemaType) MarshalYAML() (interface{}, error) {
+	if len(t) == 1 {
+		return t[0], nil
+	}
+
+	return []string(t), nil
+}
+
+// Whether the schema is of this type. A 3.1 list carrying the name alongside `null` is too.
+func (t SchemaType) Is(name string) bool {
+	for _, held := range t {
+		if held == name {
+			return true
+		}
+	}
+
+	return false
+}
+
 type Schema struct {
 	Ref         *string            `yaml:"$ref,omitempty"`
-	Type        *string            `yaml:"type,omitempty"`
+	Type        SchemaType         `yaml:"type,omitempty"`
 	Description *string            `yaml:"description,omitempty"`
 	Properties  map[string]*Schema `yaml:"properties,omitempty"`
 	Required    []*string          `yaml:"required,omitempty"`

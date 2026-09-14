@@ -335,7 +335,7 @@ func (n *OpenAPIConverter) resolveParameterRefs(params []*Parameter, relPath str
 			if resolved.Schema != nil && resolved.Schema.Properties != nil {
 				// Check for explode possibility
 				exploded := false
-				if resolved.Schema.Type != nil && *resolved.Schema.Type == "object" {
+				if resolved.Schema.Type.Is("object") {
 					exploded = true
 				}
 

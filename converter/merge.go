@@ -78,7 +78,7 @@ func mergeAllOf(schemas []*Schema, components *Components) (*Schema, error) {
 		}
 
 		// Update type if specified
-		if schema.Type != nil {
+		if len(schema.Type) > 0 {
 			result.Type = schema.Type
 		}
 	}

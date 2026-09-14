@@ -238,6 +238,60 @@ func findRequestBodyExamples(t *testing.T, doc map[string]any, path, method stri
 	return examples
 }
 
+// OpenAPI 3.1 adopts JSON Schema 2020-12, where `type` is one name or a list of them, and the list
+// is how 3.1 states a nullable field. Both shapes have to survive a conversion as they arrived: the
+// list stays a list, and one name stays one name rather than becoming a list of one.
+func TestSchemaTypeListSurvivesConversion(t *testing.T) {
+	conv, err := converter.NewOpenApiConverter("../examples/spec.yml")
+	if err != nil {
+		t.Fatalf("failed to load the example spec: %v", err)
+	}
+	if err := conv.ValidateDocument(); err != nil {
+		t.Fatalf("validation error: %v", err)
+	}
+
+	outDir := t.TempDir()
+	if err := conv.WriteOpenAPISpec(outDir); err != nil {
+		t.Fatalf("failed to write the joint spec: %v", err)
+	}
+
+	doc := readJointSpec(t, filepath.Join(outDir, conv.CommonPrefix, "spec.json"))
+	properties := findSchemaProperties(t, doc, "User")
+
+	nullable, ok := properties["nickname"].(map[string]any)["type"].([]any)
+	if !ok {
+		t.Fatalf(`nickname type: want a list, got %#v`, properties["nickname"])
+	}
+	if len(nullable) != 2 || nullable[0] != "string" || nullable[1] != "null" {
+		t.Fatalf(`nickname type: want ["string","null"], got %#v`, nullable)
+	}
+
+	if got := properties["name"].(map[string]any)["type"]; got != "string" {
+		t.Fatalf(`name type: want "string", got %#v`, got)
+	}
+}
+
+func findSchemaProperties(t *testing.T, doc map[string]any, schema string) map[string]any {
+	t.Helper()
+	components, ok := doc["components"].(map[string]any)
+	if !ok {
+		t.Fatalf("components missing")
+	}
+	schemas, ok := components["schemas"].(map[string]any)
+	if !ok {
+		t.Fatalf("component schemas missing")
+	}
+	held, ok := schemas[schema].(map[string]any)
+	if !ok {
+		t.Fatalf("schema %s missing", schema)
+	}
+	properties, ok := held["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("schema %s has no properties", schema)
+	}
+	return properties
+}
+
 func findOperation(t *testing.T, doc map[string]any, path, method string) map[string]any {
 	t.Helper()
 	paths, ok := doc["paths"].(map[string]any)
