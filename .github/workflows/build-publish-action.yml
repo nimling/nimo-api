@@ -51,7 +51,8 @@ jobs:
           docker build \
             --build-arg GOOS=${{ matrix.os }} \
             --build-arg GOARCH=${{ matrix.arch }} \
-            -t openapi-converter-builder:${{ matrix.os }}-${{ matrix.arch }} .
+            --build-arg VERSION=${{ needs.version.outputs.version }} \
+            -t nimo-builder:${{ matrix.os }}-${{ matrix.arch }} .
       
       - name: Extract binary from Docker
         run: |
@@ -59,16 +60,16 @@ jobs:
           if [[ "${{ matrix.os }}" == "windows" ]]; then
             EXT=.exe
           fi
-          docker create --name temp-container openapi-converter-builder:${{ matrix.os }}-${{ matrix.arch }}
+          docker create --name temp-container nimo-builder:${{ matrix.os }}-${{ matrix.arch }}
           mkdir -p dist
-          docker cp temp-container:/root/openapi-converter${EXT} ./dist/openapi-converter-${{ matrix.os }}-${{ matrix.arch }}${EXT}
+          docker cp temp-container:/root/nimo${EXT} ./dist/nimo-${{ matrix.os }}-${{ matrix.arch }}${EXT}
           docker rm temp-container
       
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: openapi-converter-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/openapi-converter-*
+          name: build-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/nimo-*
   
   publish:
     needs: [version, build]
@@ -81,22 +82,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
-      
-      - name: Prepare release assets
-        run: |
-          cd dist
-          find . -type f -name 'openapi-converter-*' -exec mv {} . \; 2>/dev/null
-          find . -type d -mindepth 1 -exec rm -rf {} \; 2>/dev/null || true
-          ls -la
-      
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -la dist
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.version.outputs.version }}
           name: Release ${{ needs.version.outputs.version }}
-          files: dist/openapi-converter-*
+          files: dist/nimo-*
           body: |
-            ## OpenAPI Converter ${{ needs.version.outputs.version }}
+            ## nimo ${{ needs.version.outputs.version }}
 
             ### Installation
 
@@ -105,12 +103,12 @@ jobs:
 
             #### Go Install
             ```bash
-            go install github.com/nimling/openapi-converter@${{ needs.version.outputs.version }}
+            go install github.com/nimling/nimo-api/cmd@${{ needs.version.outputs.version }}
             ```
 
             #### GitHub Action
             ```yaml
-            - uses: nimling/openapi-converter@${{ needs.version.outputs.version }}
+            - uses: nimling/nimo-api@${{ needs.version.outputs.version }}
               with:
                 openapi-file: spec.yml
                 docs-dir: output

@@ -45,13 +45,13 @@ The convert command processes YAML/JSON API specifications and generates:
 
 Examples:
   # Convert a single spec to VitePress docs
-  openapi-converter convert api.yml -d ./docs --write-introduction
+  nimo convert api.yml -d ./docs --write-introduction
 
   # Generate Nginx configuration
-  openapi-converter convert api.yml -o ./nginx --file-prefix api
+  nimo convert api.yml -o ./nginx --file-prefix api
 
   # Process multiple specs with common prefix
-  openapi-converter convert *.yml -d ./docs --common-prefix v1`,
+  nimo convert *.yml -d ./docs --common-prefix v1`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: runConvertCommand,
 	}
