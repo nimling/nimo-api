@@ -1,5 +1,8 @@
 dist
-.claude
+.claude/settings.local.json
+.claude/tasks/
+.claude/sessions/
+.claude/scheduled_tasks.lock
 .env
 CLAUDE.md
 !.env.example
