@@ -49,7 +49,7 @@ The Postman collection and the hurl archive are generated from the same specific
 
 3. A request body is the example of the request when it has one, and is otherwise built from the schema: its example, default, first enum value, format and type.
 
-4. An OAuth2 client credentials flow becomes the OAuth2 settings of the collection and a token request at the top of `api.hurl`, which captures the token for the entries below. An API key and HTTP bearer or basic authentication are carried the same way.
+4. An OAuth2 client credentials flow becomes the OAuth2 settings of the collection and a token request at the top of `api.hurl`, which captures the token for the entries below. The client id, the client secret and the audience are variables the reader fills in. An API key and HTTP bearer or basic authentication are carried the same way.
 
 5. Path parameters become variables, filled from their examples.
 

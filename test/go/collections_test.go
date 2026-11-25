@@ -151,6 +151,9 @@ func TestConvertWritesPostmanCollection(t *testing.T) {
 	if variables["tokenUrl"] != "https://login.example.com/oauth/token" {
 		t.Errorf("tokenUrl = %q", variables["tokenUrl"])
 	}
+	if _, ok := variables["audience"]; !ok {
+		t.Errorf("the audience variable is missing: %v", variables)
+	}
 
 	requests := map[string]string{}
 	auth := map[string]string{}
@@ -202,7 +205,7 @@ func TestConvertWritesHurlArchive(t *testing.T) {
 
 	requests := files["api.hurl"]
 	for _, expected := range []string{
-		"POST {{token_url}}\n[FormParams]\ngrant_type: client_credentials\nclient_id: {{client_id}}\nclient_secret: {{client_secret}}\nscope: things:read things:write\n",
+		"POST {{token_url}}\n[FormParams]\ngrant_type: client_credentials\nclient_id: {{client_id}}\nclient_secret: {{client_secret}}\naudience: {{audience}}\nscope: things:read things:write\n",
 		"token: jsonpath \"$.access_token\"",
 		"GET {{base_url}}/things/{{thingId}}\nAuthorization: Bearer {{token}}\n\nHTTP 200",
 		"POST {{base_url}}/things\nAuthorization: Bearer {{token}}\nContent-Type: application/json\n{",
@@ -220,6 +223,7 @@ func TestConvertWritesHurlArchive(t *testing.T) {
 		"token_url=https://login.example.com/oauth/token\n",
 		"client_id=\n",
 		"client_secret=\n",
+		"audience=\n",
 		"thingId=3fa85f64-5717-4562-b3fc-2c963f66afa6\n",
 		"api_key=\n",
 	} {

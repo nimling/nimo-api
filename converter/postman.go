@@ -162,15 +162,23 @@ func (n *OpenAPIConverter) WritePostmanCollection(outputDir string) error {
 				putVariable("tokenUrl", op.Scheme.Flows.ClientCredentials.TokenURL)
 				putVariable("clientId", "")
 				putVariable("clientSecret", "")
+				putVariable("audience", "")
 				request.Auth = map[string]interface{}{
 					"type": "oauth2",
-					"oauth2": []postmanVariable{
-						{Key: "grant_type", Value: "client_credentials", Type: "string"},
-						{Key: "accessTokenUrl", Value: "{{tokenUrl}}", Type: "string"},
-						{Key: "clientId", Value: "{{clientId}}", Type: "string"},
-						{Key: "clientSecret", Value: "{{clientSecret}}", Type: "string"},
-						{Key: "scope", Value: strings.Join(op.Scopes, " "), Type: "string"},
-						{Key: "addTokenTo", Value: "header", Type: "string"},
+					"oauth2": []interface{}{
+						postmanVariable{Key: "grant_type", Value: "client_credentials", Type: "string"},
+						postmanVariable{Key: "accessTokenUrl", Value: "{{tokenUrl}}", Type: "string"},
+						postmanVariable{Key: "clientId", Value: "{{clientId}}", Type: "string"},
+						postmanVariable{Key: "clientSecret", Value: "{{clientSecret}}", Type: "string"},
+						postmanVariable{Key: "scope", Value: strings.Join(op.Scopes, " "), Type: "string"},
+						map[string]interface{}{
+							"key":  "tokenRequestParams",
+							"type": "any",
+							"value": []map[string]interface{}{
+								{"key": "audience", "value": "{{audience}}", "enabled": true, "send_as": "request_body"},
+							},
+						},
+						postmanVariable{Key: "addTokenTo", Value: "header", Type: "string"},
 					},
 				}
 			case op.Scheme.Type == "apiKey":

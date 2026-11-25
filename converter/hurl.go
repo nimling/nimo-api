@@ -39,6 +39,7 @@ func (n *OpenAPIConverter) WriteHurlArchive(outputDir string) error {
 		putVariable("token_url", flow.TokenURL)
 		putVariable("client_id", "")
 		putVariable("client_secret", "")
+		putVariable("audience", "")
 
 		scopes := make([]string, 0, len(flow.Scopes))
 		for scope := range flow.Scopes {
@@ -52,6 +53,7 @@ func (n *OpenAPIConverter) WriteHurlArchive(outputDir string) error {
 		requests.WriteString("grant_type: client_credentials\n")
 		requests.WriteString("client_id: {{client_id}}\n")
 		requests.WriteString("client_secret: {{client_secret}}\n")
+		requests.WriteString("audience: {{audience}}\n")
 		if len(scopes) > 0 {
 			requests.WriteString("scope: " + strings.Join(scopes, " ") + "\n")
 		}
