@@ -42,6 +42,12 @@ inputs:
     description: 'Generate VitePress markdown files in output directory (for convert command)'
     required: false
     default: 'false'
+  postman-output-dir:
+    description: 'Output directory for the Postman collection, written as postman.json (for convert command)'
+    required: false
+  hurl-output-dir:
+    description: 'Output directory for the hurl archive, written as hurl.zip (for convert command)'
+    required: false
   nginx-output-dir:
     description: 'Output directory for nginx configuration files (for convert command)'
     required: false
@@ -171,6 +177,8 @@ runs:
         [ -n "${{ inputs.docs }}" ] && ARGS="$ARGS --docs ${{ inputs.docs }}"
         [ "${{ inputs.generate-docs }}" == "true" ] && ARGS="$ARGS -d"
         [ -n "${{ inputs.nginx-output-dir }}" ] && ARGS="$ARGS --nginx-output ${{ inputs.nginx-output-dir }}"
+        [ -n "${{ inputs.postman-output-dir }}" ] && ARGS="$ARGS --postman-output ${{ inputs.postman-output-dir }}"
+        [ -n "${{ inputs.hurl-output-dir }}" ] && ARGS="$ARGS --hurl-output ${{ inputs.hurl-output-dir }}"
         [ -n "${{ inputs.common-prefix }}" ] && ARGS="$ARGS --common-prefix ${{ inputs.common-prefix }}"
         [ -n "${{ inputs.file-prefix }}" ] && ARGS="$ARGS --file-prefix ${{ inputs.file-prefix }}"
         [ -n "${{ inputs.index-path }}" ] && ARGS="$ARGS -i ${{ inputs.index-path }}"

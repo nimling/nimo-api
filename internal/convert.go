@@ -30,6 +30,8 @@ var (
 	verboseWrite         bool
 	splitDir             string
 	splitFile            string
+	postmanOutputDir     string
+	hurlOutputDir        string
 )
 
 func NewConvertCommand() *cobra.Command {
@@ -57,6 +59,8 @@ Examples:
 	}
 
 	cmd.Flags().StringVar(&nginxOutputDir, "nginx-output", "", "Output directory for Nginx configuration files")
+	cmd.Flags().StringVar(&postmanOutputDir, "postman-output", "", "Output directory for the Postman collection, written as postman.json")
+	cmd.Flags().StringVar(&hurlOutputDir, "hurl-output", "", "Output directory for the hurl archive, written as hurl.zip with api.hurl and variables.env")
 	cmd.Flags().StringVarP(&outputDir, "output", "o", os.Getenv("NIMO_OUTPUT"), "Output directory for spec.json (can also be set via NIMO_OUTPUT env var)")
 	cmd.Flags().StringVar(&docsDir, "docs", "", "Output directory for VitePress markdown files (overrides output dir)")
 	cmd.Flags().BoolVarP(&generateDocs, "generate-docs", "d", false, "Generate VitePress markdown files in output directory")
@@ -90,7 +94,7 @@ func (o InlineOptions) Any() bool {
 	return o.Examples || o.Responses || o.Schemas || o.Parameters
 }
 
-func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
+func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName, postmanOutput, hurlOutput string) error {
 	if nginxOutput != "" {
 		if err := os.MkdirAll(nginxOutput, 0755); err != nil {
 			return fmt.Errorf("failed to create nginx output directory: %w", err)
@@ -98,7 +102,7 @@ func RunConvert(args []string, nginxOutput, specOutput, docsPath string, genDocs
 	}
 
 	for _, path := range args {
-		if err := processPath(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName); err != nil {
+		if err := processPath(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, postmanOutput, hurlOutput); err != nil {
 			return err
 		}
 	}
@@ -115,10 +119,10 @@ func runConvertCommand(cmd *cobra.Command, args []string) error {
 		Schemas:    inlineSchemas || flat,
 		Parameters: inlineParameters || flat,
 	}
-	return RunConvert(args, nginxOutputDir, outputDir, docsDir, generateDocs, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline, inline, noRefs, splitDir, splitFile)
+	return RunConvert(args, nginxOutputDir, outputDir, docsDir, generateDocs, indexPath, filePrefix, commonPrefix, writeIntroduction, mergeResponsesInline, inline, noRefs, splitDir, splitFile, postmanOutputDir, hurlOutputDir)
 }
 
-func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
+func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName, postmanOutput, hurlOutput string) error {
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
@@ -140,7 +144,7 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 					return err
 				}
 				if !info.IsDir() && (strings.HasSuffix(info.Name(), ".yml") || strings.HasSuffix(info.Name(), ".yaml")) {
-					return processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName)
+					return processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, postmanOutput, hurlOutput)
 				}
 				return nil
 			})
@@ -148,7 +152,7 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 				return err
 			}
 		} else if strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml") {
-			err = processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName)
+			err = processFile(path, nginxOutput, specOutput, docsPath, genDocs, indexFilePath, filePrefixStr, commonPrefixStr, writeIntro, mergeResponses, inline, dereference, splitDirName, splitFileName, postmanOutput, hurlOutput)
 			if err != nil {
 				return err
 			}
@@ -158,7 +162,7 @@ func processPath(pattern string, nginxOutput, specOutput, docsPath string, genDo
 	return nil
 }
 
-func processFile(filePath string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName string) error {
+func processFile(filePath string, nginxOutput, specOutput, docsPath string, genDocs bool, indexFilePath, filePrefixStr, commonPrefixStr string, writeIntro, mergeResponses bool, inline InlineOptions, dereference bool, splitDirName, splitFileName, postmanOutput, hurlOutput string) error {
 	conv, err := converter.NewOpenApiConverter(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to load OpenAPI specification: %w", err)
@@ -244,6 +248,18 @@ func processFile(filePath string, nginxOutput, specOutput, docsPath string, genD
 		}
 	} else if err = conv.WriteSplitOpenAPISpec(outputDirForSpec, splitDirName, splitFileName); err != nil {
 		return fmt.Errorf("failed to write split spec: %w", err)
+	}
+
+	if postmanOutput != "" {
+		if err = conv.WritePostmanCollection(postmanOutput); err != nil {
+			return fmt.Errorf("failed to write Postman collection: %w", err)
+		}
+	}
+
+	if hurlOutput != "" {
+		if err = conv.WriteHurlArchive(hurlOutput); err != nil {
+			return fmt.Errorf("failed to write hurl archive: %w", err)
+		}
 	}
 
 	if genDocs || len(docsPath) > 0 {

@@ -80,13 +80,28 @@ type Example struct {
 }
 
 type SecurityScheme struct {
-	Ref          *string `yaml:"$ref,omitempty"`
-	Type         string  `yaml:"type,omitempty"`
-	Scheme       string  `yaml:"scheme,omitempty"`
-	BearerFormat string  `yaml:"bearerFormat,omitempty"`
-	In           string  `yaml:"in,omitempty"`
-	Name         string  `yaml:"name,omitempty"`
-	Description  string  `yaml:"description"`
+	Ref          *string     `yaml:"$ref,omitempty"`
+	Type         string      `yaml:"type,omitempty"`
+	Scheme       string      `yaml:"scheme,omitempty"`
+	BearerFormat string      `yaml:"bearerFormat,omitempty"`
+	In           string      `yaml:"in,omitempty"`
+	Name         string      `yaml:"name,omitempty"`
+	Description  string      `yaml:"description"`
+	Flows        *OAuthFlows `yaml:"flows,omitempty"`
+}
+
+type OAuthFlows struct {
+	Implicit          *OAuthFlow `yaml:"implicit,omitempty"`
+	Password          *OAuthFlow `yaml:"password,omitempty"`
+	ClientCredentials *OAuthFlow `yaml:"clientCredentials,omitempty"`
+	AuthorizationCode *OAuthFlow `yaml:"authorizationCode,omitempty"`
+}
+
+type OAuthFlow struct {
+	AuthorizationURL string            `yaml:"authorizationUrl,omitempty"`
+	TokenURL         string            `yaml:"tokenUrl,omitempty"`
+	RefreshURL       string            `yaml:"refreshUrl,omitempty"`
+	Scopes           map[string]string `yaml:"scopes"`
 }
 
 type Parameter struct {

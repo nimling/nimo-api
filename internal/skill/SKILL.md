@@ -36,6 +36,8 @@ Takes one or more file paths, globs, or directories, and requires at least one a
 | flag | default | what it does |
 | --- | --- | --- |
 | `--nginx-output` | empty | directory for the nginx configuration files |
+| `--postman-output` | empty | directory for the Postman collection, written as `postman.json` |
+| `--hurl-output` | empty | directory for the hurl archive, written as `hurl.zip` |
 | `-o`, `--output` | `$NIMO_OUTPUT` | directory the spec is written to |
 | `--docs` | empty | directory for the VitePress markdown, overrides the output dir |
 | `-d`, `--generate-docs` | false | write the VitePress markdown into the output directory |
@@ -66,6 +68,8 @@ The order inside one file is fixed: load, validate, normalize refs, `--merge-res
 3. With any inline flag the spec is one self contained file at `<output>/<common-prefix>/<file-prefix>spec.json`. `--spec-dir` and `--spec-file` do not apply to it.
 
 4. `--nginx-output` writes `<nginx-output>/<input basename>.conf.template`, one nginx `location` block per path in the spec.
+
+4.1. `--postman-output` writes `<postman-output>/<file-prefix>postman.json`, a Postman v2.1 collection with one folder per tag and one request per operation. `--hurl-output` writes `<hurl-output>/<file-prefix>hurl.zip` holding `api.hurl`, one entry per operation, and `variables.env` for `hurl --variables-file`. Bodies come from the request example, else from the schema; an OAuth2 client credentials flow becomes the token step.
 
 5. Docs go to `--docs`, else `--output`, else the input directory, under `<common-prefix>`, as `[tag].md` and `[tag].paths.js`, plus `<file-prefix>introduction.md` with `--write-introduction`.
 

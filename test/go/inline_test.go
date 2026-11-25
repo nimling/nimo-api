@@ -32,6 +32,8 @@ func runInlineConvert(t *testing.T, outputDir string, opts internal.InlineOption
 		false,
 		"",
 		"",
+		"",
+		"",
 	); err != nil {
 		t.Fatalf("RunConvert failed: %v", err)
 	}
@@ -450,6 +452,8 @@ func TestNginxAllowsEveryHTTPMethod(t *testing.T) {
 		false,
 		internal.InlineOptions{},
 		false,
+		"",
+		"",
 		"",
 		"",
 	); err != nil {

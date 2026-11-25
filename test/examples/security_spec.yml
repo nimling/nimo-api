@@ -1,0 +1,100 @@
+openapi: 3.0.1
+info:
+  title: Security API
+  description: A spec with an OAuth2 client credentials flow and an API key.
+  version: '1.0.0'
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://login.example.com/oauth/token
+          scopes:
+            things:read: Read things
+            things:write: Write things
+    reportKey:
+      type: apiKey
+      in: header
+      name: X-Report-Key
+paths:
+  /things/{thingId}:
+    get:
+      summary: Get thing
+      description: Retrieve one thing by its id.
+      operationId: getThing
+      tags:
+        - Things
+      security:
+        - oauth2:
+            - things:read
+      parameters:
+        - name: thingId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The thing
+  /things:
+    post:
+      summary: Create thing
+      description: Create one thing.
+      operationId: createThing
+      tags:
+        - Things
+      security:
+        - oauth2:
+            - things:write
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                amount:
+                  type: integer
+                kind:
+                  type: string
+                  enum:
+                    - small
+                    - large
+                owner:
+                  oneOf:
+                    - type: string
+                      example: owner-1
+                    - type: object
+      responses:
+        '201':
+          description: The created thing
+  /reports:
+    post:
+      summary: Receive report
+      description: Receive one report from a provider.
+      operationId: postReport
+      tags:
+        - Reports
+      security:
+        - reportKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              id: report-1
+      responses:
+        '200':
+          description: Stored

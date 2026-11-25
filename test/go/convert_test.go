@@ -83,7 +83,7 @@ func TestRunConvertDirectly(t *testing.T) {
 	args := []string{"../examples/spec.yml"}
 	defer os.RemoveAll("../../tmp")
 
-	err := internal.RunConvert(args, "", "../../tmp/test-direct", "", false, "", "", "", false, false, internal.InlineOptions{}, false, "", "")
+	err := internal.RunConvert(args, "", "../../tmp/test-direct", "", false, "", "", "", false, false, internal.InlineOptions{}, false, "", "", "", "")
 	if err != nil {
 		t.Errorf("RunConvert failed: %v", err)
 	}
